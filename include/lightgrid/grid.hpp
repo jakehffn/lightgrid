@@ -5,7 +5,7 @@
 #include <set>
 #include <algorithm>
 
-namespace light_grid {
+namespace lightgrid {
 
     template<typename C, typename T>
     concept insertable = requires(C& c, T t) {
