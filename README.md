@@ -10,4 +10,4 @@ There is currently only a single header file needed to use light-grid. The proje
 
 To build the example for executable for this project, SDL2 will need to be installed on your machine.
 
-Building this project can either be done with the provided VSCode tasks if you are using Mingw. Otherwise, use the CMake files to generate your preferred build system.
+Use the CMake files to generate your preferred build system.
