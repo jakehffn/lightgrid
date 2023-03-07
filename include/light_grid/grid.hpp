@@ -26,10 +26,11 @@ namespace light_grid {
         // -1 if the end of either list
         int next=-1; 
     };
-
-    // @brief Data-structure for spacial look-up.
-    // Divides 2D coordinates into cells, allowing for insertion and lookup for 
-    //      an arbitrary type T, based on position.
+    /**
+    * @brief Data-structure for spacial lookup.
+    * Divides 2D coordinates into cells, allowing for insertion and lookup for 
+    *   an arbitrary type T, based on position.
+    */    
     template<class T>
     class grid {
     public:
