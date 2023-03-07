@@ -1,0 +1,35 @@
+{
+    "configurations": [
+        {
+            "name": "MinGW",
+            "compilerPath": "C:\\msys64\\mingw32\\bin\\g++.exe",
+            "includePath": [
+                "${workspaceFolder}",
+                "${workspaceFolder}\\include",
+                "${workspaceFolder}\\include\\**",
+                "${workspaceFolder}\\test\\benchmark",
+                "${workspaceFolder}\\test\\example",
+                "${workspaceFolder}\\test\\fast_grid",
+                "C:\\mingw_dev_lib\\SDL2\\include\\SDL2",
+                "C:\\mingw_dev_lib\\glew-2.1.0\\include",
+                "C:\\mingw_dev_lib\\tmxlite\\include"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "intelliSenseMode": "gcc-x86",
+            "browse": {
+                "path": [
+                    "${workspaceFolder}"
+                ],
+                "limitSymbolsToIncludedHeaders": true,
+                "databaseFilename": ""
+            },
+            "cStandard": "c11",
+            "cppStandard": "c++20"
+        }
+    ],
+    "version": 4
+}
