@@ -7,30 +7,56 @@
 
 #include <lightgrid/grid.hpp>
 
-struct TestEntity {
+lightgrid::bounds genValidBounds(int map_width, int map_height);
+
+std::mt19937 gen_rand;
+
+struct Entity {
     lightgrid::bounds bounds;
     int id{-1};
     int element_node{-1};
 };
 
-size_t num_test_entities{40000};
-int map_width{3200};
-int map_height{3200};
-int cell_size{16};
+struct Test {
+    size_t num_tests{100};
+    size_t num_test_entities{800};
+    int cell_size{16};
+    int map_width{3200};
+    int map_height{3200};
 
-std::vector<TestEntity> test_entities;
-// std::vector<lightgrid::bounds> test_bounds;
-lightgrid::grid<TestEntity*> grid;
-std::mt19937 gen_rand;
+    std::vector<int64_t> function_durations;
+    std::vector<std::string> function_labels;
+
+    std::vector<Entity> test_entities;
+    lightgrid::grid<Entity*> grid;
+
+    Test(size_t num_tests, size_t num_test_entities, int cell_size) :
+        num_tests{ num_tests }, num_test_entities{ num_test_entities }, cell_size{ cell_size } {
+
+            this->test_entities.reserve(this->num_test_entities);
+
+            for (size_t i{0}; i < this->num_test_entities; i++) {
+                this->test_entities.emplace_back(genValidBounds(this->map_width, this->map_height), i);
+            }
+
+            // Initialize the test grid with the test entities
+            this->grid.init(this->map_width, this->map_height, this->cell_size);
+            this->grid.reserve(this->num_test_entities);
+
+            for (auto& entity : this->test_entities) {
+                entity.element_node = grid.insert(&entity, entity.bounds);
+            }
+    }
+};
 
 void printPercentage(int part, int total) {
 
-    int total_possible_marks = 60;
+    int total_marks = 60;
     float percent = part/(float)total;
-    int num_marks = (int)(percent*total_possible_marks);
-    std::cout << "\r[";
-    std::cout << std::setfill('=') << std::setw(num_marks) << ">";
-    std::cout << std::setfill('-') << std::setw(total_possible_marks - num_marks);
+    int num_marks = (int)(percent*total_marks);
+    std::cout << std::right << "\r[";
+    std::cout << std::setfill('=') << std::setw(num_marks + 1) << ">"; // One is added becuase the minimum number of characters is always at least one
+    std::cout << std::setfill('-') << std::setw(total_marks - num_marks + 1);
     std::cout << "]";
 
     int total_string_length = std::to_string(total).length();
@@ -40,7 +66,7 @@ void printPercentage(int part, int total) {
     std::cout << std::setw(4) << (int)(percent*100) << "% ";  
 }
 
-void printEntity(const TestEntity& test_entity) {
+void printEntity(const Entity& test_entity) {
 
     std::cout << std::right << std::setfill('-') << std::setw(10) << "\n";
     std::cout << std::left << std::setfill(' ');
@@ -51,6 +77,33 @@ void printEntity(const TestEntity& test_entity) {
 
     std::cout << "id: " << std::setw(12) << test_entity.id << "    ";
     std::cout << "element_node: " << std::setw(30) << test_entity.element_node << "\n";
+}
+
+void printTest(const Test& test) {
+
+    int col_width{20};
+    int precision{8};
+
+    std::cout << "\n";
+    std::cout << "-----------------------------------------------\n";
+    std::cout << "|                  Summary                    |\n";
+    std::cout << "-----------------------------------------------\n\n";
+
+    std::cout << std::left << std::setfill(' ');
+    std::cout << std::setw(col_width) << "Number of Tests: " << test.num_tests << "\n";
+    std::cout << std::setw(col_width) << "Number of Entities: " << test.num_test_entities << "\n\n";
+
+    for (size_t i{0}; i < test.function_labels.size(); i++) {
+
+        auto duration = test.function_durations[i];
+        auto average = duration/(float)test.num_tests;
+
+        std::cout << test.function_labels[i] << ": \n";
+        std::cout << "    " << std::setw(col_width-4) << "Total Time: " << std::setprecision(precision) << duration/1000000.0 << " ms" << "\n";
+        std::cout << "    " << std::setw(col_width-4) << "Per Test: " << average/1000000.0 << std::setprecision(precision) << " ms\n\n";
+    }
+
+    std::cout << "-----------------------------------------------\n\n";
 }
 
 bool isColliding(const lightgrid::bounds& bounds_1, const lightgrid::bounds& bounds_2) {
@@ -68,10 +121,16 @@ bool isColliding(const lightgrid::bounds& bounds_1, const lightgrid::bounds& bou
     return (bottom_1 > top_2 && bottom_2 > top_1 && right_1 > left_2 && right_2 > left_1);
 }
 
-lightgrid::bounds genValidBounds(int map_width, int map_height, int cell_size) {
+lightgrid::bounds genValidBounds(int map_width, int map_height) {
 
-    int w{((int)(gen_rand()%(uint_fast32_t)100)-10)+10};
-    int h{((int)(gen_rand()%(uint_fast32_t)100)-10)+10};
+    int max_width{100};
+    int min_width{16};
+
+    int max_height{100};
+    int min_height{16};
+
+    int w{((int)(gen_rand()%(uint_fast32_t)max_width)-min_width)+min_width};
+    int h{((int)(gen_rand()%(uint_fast32_t)max_height)-min_height)+min_height};
 
     lightgrid::bounds new_bounds {
         ((int)(gen_rand()%(uint_fast32_t)(map_width-w-1))+1),
@@ -90,30 +149,46 @@ int64_t timeFunction(F&& func) {
     std::forward<F>(func)();
     auto end = std::chrono::high_resolution_clock::now();
 
-    return std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 }
 
-int64_t naiveCollisionsTime() {
+template<typename F>
+void testFunction(F&& func, Test& test, std::string label) {
 
-    std::cout << "\n---No grid collision test---\n";
+    test.function_durations.push_back(0);
+    test.function_labels.push_back(label);
 
-    std::vector<TestEntity*> results;
+    std::cout << label << "\n";
+
+    for (int i{0}; i < test.num_tests; i++) {
+
+        if (i%(test.num_tests/100 + 1) == 0) {
+            printPercentage(i, test.num_tests);
+        }
+
+        std::forward<F>(func)(test);
+    }
+
+    printPercentage(test.num_tests, test.num_tests);
+
+    std::cout << "\n\n";
+}
+
+void naiveCollisionsTime(Test& test) {
+
+    // std::cout << "\n---No grid collision test---\n";
+
+    std::vector<Entity*> results;
     int i{0};
 
-    int64_t duration_sum{0};
-
-    for (int xx{0}; xx < num_test_entities; xx++) {
-
-        if (xx%(num_test_entities/100) == 0) {
-            printPercentage(xx, num_test_entities);
-        }
+    for (int xx{0}; xx < test.num_test_entities; xx++) {
         
-        duration_sum += timeFunction([&results, &i, &xx]() {
+        test.function_durations[test.function_durations.size()-1] += timeFunction([&test, &results, &i, &xx]() {
 
-            for (int yy{0}; yy < num_test_entities; yy++) {
+            for (int yy{0}; yy < test.num_test_entities; yy++) {
 
-                if (xx != yy && isColliding(test_entities[xx].bounds, test_entities[yy].bounds)) {
-                    results.push_back(&test_entities[xx]);
+                if (xx != yy && isColliding(test.test_entities[xx].bounds, test.test_entities[yy].bounds)) {
+                    results.push_back(&(test.test_entities[xx]));
                 }
             }
 
@@ -121,36 +196,21 @@ int64_t naiveCollisionsTime() {
             results.clear();
         });
     }
-
-    printPercentage(num_test_entities, num_test_entities);
-
-    std::cout << "\n| Collisions detected: " << i << "\n";
-    std::cout << "-------------------------\n";
-
-    return duration_sum;
 }
 
-int64_t gridCollisionsTime() {
+void gridCollisionsTime(Test& test) {
 
-    std::cout << "\n---Grid collision test---\n";
-
-    std::vector<TestEntity*> results;
+    std::vector<Entity*> results;
     int i{0};
 
-    int64_t duration_sum{0};
+    for (int xx{0}; xx < test.test_entities.size(); xx++) {
 
-    for (int xx{0}; xx < test_entities.size(); xx++) {
+        test.function_durations[test.function_durations.size()-1] += timeFunction([&test, &results, &i, &xx]() {
 
-        if (xx%(num_test_entities/100) == 0) {
-            printPercentage(xx, num_test_entities);
-        }
-
-        duration_sum += timeFunction([&results, &i, &xx]() {
-
-            grid.query(test_entities[xx].bounds, results);
+            test.grid.query(test.test_entities[xx].bounds, results);
 
             for (auto entity : results) {
-                if (entity->id != xx && isColliding(test_entities[xx].bounds, entity->bounds)) {
+                if (entity->id != xx && isColliding(test.test_entities[xx].bounds, entity->bounds)) {
                     i++;
                 }
             }
@@ -158,42 +218,23 @@ int64_t gridCollisionsTime() {
             results.clear();
         });
     }
-
-    printPercentage(num_test_entities, num_test_entities);
-
-    std::cout << "\n| Collisions detected: " <<  i << "\n";
-    std::cout << "-------------------------\n";
-
-    return duration_sum;
 }
 
 int main() {
 
-    // Create all the test entities
-    test_entities.reserve(num_test_entities);
+    std::cout << "\n";
+    std::cout << "===============================================\n";
+    std::cout << "|                                             |\n";
+    std::cout << "|           Light Grid Benchmark              |\n";
+    std::cout << "|               Jake Hoffman                  |\n";
+    std::cout << "|                   2023                      |\n";
+    std::cout << "|                                             |\n";
+    std::cout << "===============================================\n\n";
 
-    for (size_t i{0}; i < num_test_entities; i++) {
-        test_entities.emplace_back(genValidBounds(map_width, map_height, cell_size),i);
-    }
+    Test test(40000, 32, 40);
 
-    // Initialize the test grid with the test entities
-    grid.init(map_width, map_height, cell_size);
-    grid.reserve(num_test_entities);
+    testFunction(naiveCollisionsTime, test, "Collision tests");
+    testFunction(gridCollisionsTime, test, "Collision tests w/ grid");
 
-    for (auto& entity : test_entities) {
-        entity.element_node = grid.insert(&entity, entity.bounds);
-    }
-
-    auto no_grid_duration = naiveCollisionsTime();
-    auto no_grid_average = no_grid_duration/(float)num_test_entities;
-
-    auto grid_duration = gridCollisionsTime();
-    auto grid_average = grid_duration/(float)num_test_entities;
-
-    std::cout << std::left << std::setfill(' ');
-    std::cout << "\nNumber of Entities: " << num_test_entities << "\n\n";
-    std::cout << std::setw(34) << "Finding collisions without grid: " << std::setprecision(6) << no_grid_duration << " ms" << "\n";
-    std::cout << "Average: " << no_grid_average << std::setprecision(6) << " ms\n\n";
-    std::cout << std::setw(34) << "Finding collisions with grid: " << std::setprecision(6) << grid_duration << " ms" << "\n";
-    std::cout << "Average: " << grid_average << std::setprecision(6) << " ms\n";
+    printTest(test);
 }
