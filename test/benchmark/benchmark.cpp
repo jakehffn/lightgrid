@@ -3,6 +3,7 @@
 #include <vector>
 #include <random>
 #include <chrono>
+#include <string>
 
 #include <lightgrid/grid.hpp>
 
@@ -12,10 +13,32 @@ struct TestEntity {
     int element_node{-1};
 };
 
+size_t num_test_entities{40000};
+int map_width{3200};
+int map_height{3200};
+int cell_size{16};
+
 std::vector<TestEntity> test_entities;
 // std::vector<lightgrid::bounds> test_bounds;
 lightgrid::grid<TestEntity*> grid;
 std::mt19937 gen_rand;
+
+void printPercentage(int part, int total) {
+
+    int total_possible_marks = 60;
+    float percent = part/(float)total;
+    int num_marks = (int)(percent*total_possible_marks);
+    std::cout << "\r[";
+    std::cout << std::setfill('=') << std::setw(num_marks) << ">";
+    std::cout << std::setfill('-') << std::setw(total_possible_marks - num_marks);
+    std::cout << "]";
+
+    int total_string_length = std::to_string(total).length();
+    std::cout << "[";
+    std::cout << std::setfill(' ') << std::setw(total_string_length);
+    std::cout << part << "/" << total << "] ";
+    std::cout << std::setw(4) << (int)(percent*100) << "% ";  
+}
 
 void printEntity(const TestEntity& test_entity) {
 
@@ -60,50 +83,91 @@ lightgrid::bounds genValidBounds(int map_width, int map_height, int cell_size) {
     return std::move(new_bounds);
 }
 
-int getCollisionsNaive(std::vector<TestEntity*>& results) {
+template<typename F>
+int64_t timeFunction(F&& func) {
 
-    int i{0};
-    for (int xx{0}; xx < test_entities.size(); xx++) {
+    auto start = std::chrono::high_resolution_clock::now();
+    std::forward<F>(func)();
+    auto end = std::chrono::high_resolution_clock::now();
 
-        for (int yy{0}; yy < test_entities.size(); yy++) {
-
-            if (xx != yy && isColliding(test_entities[xx].bounds, test_entities[yy].bounds)) {
-                results.push_back(&test_entities[xx]);
-            }
-        }
-
-        i += results.size();
-        results.clear();
-    }
-
-    return i;
+    return std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 }
 
-int getCollisionsGrid(std::vector<TestEntity*>& results) {
+int64_t naiveCollisionsTime() {
 
+    std::cout << "\n---No grid collision test---\n";
+
+    std::vector<TestEntity*> results;
     int i{0};
+
+    int64_t duration_sum{0};
+
+    for (int xx{0}; xx < num_test_entities; xx++) {
+
+        if (xx%(num_test_entities/100) == 0) {
+            printPercentage(xx, num_test_entities);
+        }
+        
+        duration_sum += timeFunction([&results, &i, &xx]() {
+
+            for (int yy{0}; yy < num_test_entities; yy++) {
+
+                if (xx != yy && isColliding(test_entities[xx].bounds, test_entities[yy].bounds)) {
+                    results.push_back(&test_entities[xx]);
+                }
+            }
+
+            i += results.size();
+            results.clear();
+        });
+    }
+
+    printPercentage(num_test_entities, num_test_entities);
+
+    std::cout << "\n| Collisions detected: " << i << "\n";
+    std::cout << "-------------------------\n";
+
+    return duration_sum;
+}
+
+int64_t gridCollisionsTime() {
+
+    std::cout << "\n---Grid collision test---\n";
+
+    std::vector<TestEntity*> results;
+    int i{0};
+
+    int64_t duration_sum{0};
 
     for (int xx{0}; xx < test_entities.size(); xx++) {
 
-        grid.query(test_entities[xx].bounds, results);
-
-        for (auto entity : results) {
-            if (entity->id != xx && isColliding(test_entities[xx].bounds, entity->bounds)) {
-                i++;
-            }
+        if (xx%(num_test_entities/100) == 0) {
+            printPercentage(xx, num_test_entities);
         }
-        results.clear();
+
+        duration_sum += timeFunction([&results, &i, &xx]() {
+
+            grid.query(test_entities[xx].bounds, results);
+
+            for (auto entity : results) {
+                if (entity->id != xx && isColliding(test_entities[xx].bounds, entity->bounds)) {
+                    i++;
+                }
+            }
+
+            results.clear();
+        });
     }
-    
-    return i;
+
+    printPercentage(num_test_entities, num_test_entities);
+
+    std::cout << "\n| Collisions detected: " <<  i << "\n";
+    std::cout << "-------------------------\n";
+
+    return duration_sum;
 }
 
 int main() {
-
-    size_t num_test_entities{4000};
-    int map_width{2000};
-    int map_height{2000};
-    int cell_size{10};
 
     // Create all the test entities
     test_entities.reserve(num_test_entities);
@@ -120,31 +184,13 @@ int main() {
         entity.element_node = grid.insert(&entity, entity.bounds);
     }
 
-    std::vector<TestEntity*> no_grid_results;
-    int no_grid_sum{0};
-    auto start = std::chrono::high_resolution_clock::now();
-
-    no_grid_sum = getCollisionsNaive(no_grid_results);
-
-    auto end = std::chrono::high_resolution_clock::now();
-    auto no_grid_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    auto no_grid_duration = naiveCollisionsTime();
     auto no_grid_average = no_grid_duration/(float)num_test_entities;
 
-    std::cout << "No grid collision count: " << no_grid_sum << "\n";
-
-    std::vector<TestEntity*> grid_results;
-    int grid_sum{0};
-    start = std::chrono::high_resolution_clock::now();
-
-    grid_sum += getCollisionsGrid(grid_results);
-
-    end = std::chrono::high_resolution_clock::now();
-    auto grid_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    auto grid_duration = gridCollisionsTime();
     auto grid_average = grid_duration/(float)num_test_entities;
 
-    std::cout << "Grid collision count: " <<  grid_sum << "\n";
-
-    std::cout << std::left;
+    std::cout << std::left << std::setfill(' ');
     std::cout << "\nNumber of Entities: " << num_test_entities << "\n\n";
     std::cout << std::setw(34) << "Finding collisions without grid: " << std::setprecision(6) << no_grid_duration << " ms" << "\n";
     std::cout << "Average: " << no_grid_average << std::setprecision(6) << " ms\n\n";
