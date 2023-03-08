@@ -36,9 +36,11 @@ namespace lightgrid {
     public:
         void init(int width, int height, int cell_size);
         void clear();
+
         int insert(T element, const bounds& bounds);
         void remove(int element_node, const bounds& bounds);
         void update(int element_node, const bounds& old_bounds, const bounds& new_bounds);
+        void reserve(size_t num);
 
         template<template<typename Rtype> typename R, typename Rtype=T> 
         requires insertable<R<Rtype>, Rtype>
@@ -124,6 +126,14 @@ namespace lightgrid {
 
         this->remove(element_node, old_bounds);
         this->insert(this->elements[this->element_nodes[element_node].element], new_bounds);
+    }
+
+    template<class T>
+    void grid<T>::reserve(size_t num) {
+
+        this->elements.reserve(num);
+        this->cell_nodes.reserve(num);
+        this->element_nodes.reserve(num);
     }
 
     template<class T>
@@ -235,23 +245,19 @@ namespace lightgrid {
 
     template<class T>
     void grid<T>::iterateBounds(int node, const bounds& bounds, void (grid::*func)(int, int)) {
+    
+        int x_cell_start = std::clamp(bounds.x/this->cell_size, 
+            0, this->cell_row_size-1);
+        int y_cell_start = std::clamp(bounds.y/this->cell_size, 
+            0, this->cell_column_size-1);
+        int x_cell_end = std::clamp((bounds.x + bounds.w)/this->cell_size,
+            0, this->cell_row_size-1);
+        int y_cell_end = std::clamp((bounds.y + bounds.h)/this->cell_size,
+            0, this->cell_column_size-1);
 
-        // Snap to the edge if extending past the map boundaries
-        // Expanded boundaries allow for issues with cell boundaries to be avoided
-        const int expanded_bound{1};
-        
-        int x_cell_start = std::clamp(bounds.x/this->cell_size - expanded_bound, 
-            0, this->cell_row_size);
-        int y_cell_start = std::clamp(bounds.y/this->cell_size - expanded_bound, 
-            0, this->cell_column_size);
-        int x_cell_end = std::clamp(bounds.w/this->cell_size + x_cell_start + expanded_bound,
-            0, this->cell_row_size);
-        int y_cell_end = std::clamp(bounds.h/this->cell_size + y_cell_start + expanded_bound,
-            0, this->cell_column_size);
-
-        for (int xx{x_cell_start}; xx < x_cell_end; xx++) {
-            for (int yy{y_cell_start}; yy < y_cell_end; yy++) {
-                (this->*func)(yy*this->cell_row_size + xx, node);           
+        for (int xx{x_cell_start}; xx <= x_cell_end; xx++) {
+            for (int yy{y_cell_start}; yy <= y_cell_end; yy++) {
+                (this->*func)(yy*this->cell_row_size + xx, node);     
             }
         }
     }
