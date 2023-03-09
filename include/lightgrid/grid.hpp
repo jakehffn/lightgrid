@@ -2,7 +2,7 @@
 
 #include <cassert>
 #include <vector>
-#include <set>
+#include <unordered_set>
 #include <algorithm>
 
 namespace lightgrid {
@@ -13,18 +13,18 @@ namespace lightgrid {
     };
 
     struct bounds {
-        int x,y,w,h;
+        int_fast32_t x,y,w,h;
     };
 
     struct node {
         node() {};
-        node(int element) : element{ element } {};
-        node(int element, int next) : element{ element }, next{ next } {};
+        node(size_t element) : element{ element } {};
+        node(size_t element, size_t next) : element{ element }, next{ next } {};
         // Index of element in element list
-        int element=-1;
+        size_t element=-1;
         // Either the index of the next element in the cell or the next element in the free list
         // -1 if the end of either list
-        int next=-1; 
+        size_t next=-1; 
     };
     /**
     * @brief Data-structure for spacial lookup.
@@ -38,8 +38,8 @@ namespace lightgrid {
         void clear();
 
         int insert(T element, const bounds& bounds);
-        void remove(int element_node, const bounds& bounds);
-        void update(int element_node, const bounds& old_bounds, const bounds& new_bounds);
+        void remove(size_t element_node, const bounds& bounds);
+        void update(size_t element_node, const bounds& old_bounds, const bounds& new_bounds);
         void reserve(size_t num);
 
         template<template<typename Rtype> typename R, typename Rtype=T> 
@@ -48,29 +48,29 @@ namespace lightgrid {
         
     private:
         int elementInsert(T element);
-        void elementRemove(int element_node);
+        void elementRemove(size_t element_node);
 
-        void cellInsert(int cell_node, int element_node);
-        void cellRemove(int cell_node, int element_node);
-        void cellQuery(int cell_node, int unused);
+        void cellInsert(size_t cell_node, size_t element_node);
+        void cellRemove(size_t cell_node, size_t element_node);
+        void cellQuery(size_t cell_node, size_t unused);
 
-        void iterateBounds(int node, const bounds& bounds, void (grid::*func)(int, int));
+        void iterateBounds(size_t node, const bounds& bounds, void (grid::*func)(size_t, size_t));
 
         std::vector<T> elements;
         std::vector<node> element_nodes;
         std::vector<node> cell_nodes; // The first cells in this list will never change and will be accessed directly, acting as the 2D list of cells
 
-        std::set<int> last_query;
+        std::unordered_set<size_t> last_query;
 
-        int free_element_nodes=-1; // singly linked-list of the free nodes
-        int free_cell_nodes=-1; 
+        size_t free_element_nodes=-1; // singly linked-list of the free nodes
+        size_t free_cell_nodes=-1; 
 
         int width;
         int height;
         int cell_size;
         int cell_row_size;
         int cell_column_size;
-        int num_cells;
+        size_t num_cells;
     };
 
     template<class T>
@@ -108,7 +108,7 @@ namespace lightgrid {
     }
 
     template<class T>
-    void grid<T>::remove(int element_node, const bounds& bounds) {
+    void grid<T>::remove(size_t element_node, const bounds& bounds) {
 
         assert(this->cell_nodes.size() > 0 && "Remove attempted on uninitialized grid");
 
@@ -117,7 +117,7 @@ namespace lightgrid {
     }
 
     template<class T>
-    void grid<T>::update(int element_node, const bounds& old_bounds, const bounds& new_bounds) {
+    void grid<T>::update(size_t element_node, const bounds& old_bounds, const bounds& new_bounds) {
 
         assert(this->cell_nodes.size() > 0 && "Update attempted on uninitialized grid");
 
@@ -156,7 +156,7 @@ namespace lightgrid {
     }
 
     template<class T>
-    int grid<T>::elementInsert(T element) {
+    inline int grid<T>::elementInsert(T element) {
 
         int new_element_node;
 
@@ -180,7 +180,7 @@ namespace lightgrid {
     }
 
     template<class T>
-    void grid<T>::elementRemove(int element_node) {
+    inline void grid<T>::elementRemove(size_t element_node) {
 
         // Make the given element_node the head of the free_element_nodes list
         this->element_nodes[element_node].next = this->free_element_nodes;
@@ -188,7 +188,7 @@ namespace lightgrid {
     }
 
     template<class T>
-    void grid<T>::cellInsert(int cell_node, int element_node) {
+    inline void grid<T>::cellInsert(size_t cell_node, size_t element_node) {
 
         if (this->free_cell_nodes != -1) {
 
@@ -213,10 +213,10 @@ namespace lightgrid {
     }
 
     template<class T>
-    void grid<T>::cellRemove(int cell_node, int element_node) {
+    inline void grid<T>::cellRemove(size_t cell_node, size_t element_node) {
 
-        int previous_node{cell_node};
-        int current_node{this->cell_nodes[cell_node].next};
+        size_t previous_node{cell_node};
+        size_t current_node{this->cell_nodes[cell_node].next};
 
         // Find the element_node in the cell_node's list
         while (this->cell_nodes[current_node].element != element_node) {
@@ -232,9 +232,9 @@ namespace lightgrid {
     }
 
     template<class T>
-    void grid<T>::cellQuery(int cell_node, int unused) {
+    inline void grid<T>::cellQuery(size_t cell_node, size_t unused) {
 
-        int current_node{this->cell_nodes[cell_node].next};
+        size_t current_node{this->cell_nodes[cell_node].next};
 
         while (current_node != -1) {
             assert(current_node < this->cell_nodes.size() && "current_node out of bounds");
@@ -244,7 +244,7 @@ namespace lightgrid {
     }
 
     template<class T>
-    void grid<T>::iterateBounds(int node, const bounds& bounds, void (grid::*func)(int, int)) {
+    inline void grid<T>::iterateBounds(size_t node, const bounds& bounds, void (grid::*func)(size_t, size_t)) {
     
         int x_cell_start = std::clamp(bounds.x/this->cell_size, 
             0, this->cell_row_size-1);
@@ -255,8 +255,8 @@ namespace lightgrid {
         int y_cell_end = std::clamp((bounds.y + bounds.h)/this->cell_size,
             0, this->cell_column_size-1);
 
-        for (int xx{x_cell_start}; xx <= x_cell_end; xx++) {
-            for (int yy{y_cell_start}; yy <= y_cell_end; yy++) {
+        for (int yy{y_cell_start}; yy <= y_cell_end; yy++) {
+            for (int xx{x_cell_start}; xx <= x_cell_end; xx++) {
                 (this->*func)(yy*this->cell_row_size + xx, node);     
             }
         }
