@@ -16,4 +16,3 @@ Use the CMake files to generate your preferred build system.
 
 - Create tests
 - Create example
-- Create benchmark

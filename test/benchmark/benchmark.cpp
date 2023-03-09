@@ -15,6 +15,8 @@ struct Entity {
     lightgrid::bounds bounds;
     int id{-1};
     int element_node{-1};
+
+    // Entity(Entity&& entity) = default;
 };
 
 struct Test {
@@ -123,10 +125,10 @@ bool isColliding(const lightgrid::bounds& bounds_1, const lightgrid::bounds& bou
 
 lightgrid::bounds genValidBounds(int map_width, int map_height) {
 
-    int max_width{100};
+    int max_width{64};
     int min_width{16};
 
-    int max_height{100};
+    int max_height{64};
     int min_height{16};
 
     int w{((int)(gen_rand()%(uint_fast32_t)max_width)-min_width)+min_width};
@@ -183,7 +185,7 @@ void naiveCollisionsTime(Test& test) {
 
     for (int xx{0}; xx < test.num_test_entities; xx++) {
         
-        test.function_durations[test.function_durations.size()-1] += timeFunction([&test, &results, &i, &xx]() {
+        test.function_durations[test.function_durations.size()-1] += timeFunction([&test, &results, &xx]() {
 
             for (int yy{0}; yy < test.num_test_entities; yy++) {
 
@@ -192,9 +194,10 @@ void naiveCollisionsTime(Test& test) {
                 }
             }
 
-            i += results.size();
-            results.clear();
         });
+
+        i += results.size();
+        results.clear();
     }
 }
 
@@ -214,9 +217,9 @@ void gridCollisionsTime(Test& test) {
                     i++;
                 }
             }
-
-            results.clear();
         });
+
+        results.clear();
     }
 }
 
@@ -231,7 +234,7 @@ int main() {
     std::cout << "|                                             |\n";
     std::cout << "===============================================\n\n";
 
-    Test test(40000, 32, 40);
+    Test test(40, 5000, 40);
 
     testFunction(naiveCollisionsTime, test, "Collision tests");
     testFunction(gridCollisionsTime, test, "Collision tests w/ grid");
