@@ -13,7 +13,11 @@ namespace lightgrid {
     };
 
     struct bounds {
-        int_fast32_t x,y,w,h;
+        int x,y,w,h;
+    };
+
+    struct cell_bounds {
+        int x_start, x_end, y_start, y_end;
     };
 
     struct node {
@@ -42,9 +46,9 @@ namespace lightgrid {
         void update(size_t element_node, const bounds& old_bounds, const bounds& new_bounds);
         void reserve(size_t num);
 
-        template<template<typename Rtype> typename R, typename Rtype=T> 
-        requires insertable<R<Rtype>, Rtype>
-        R<Rtype>& query(const bounds& bounds, R<T>& results);
+        template<typename R> 
+        requires insertable<R, T>
+        R& query(const bounds& bounds, R& results);
         
     private:
         int elementInsert(T element);
@@ -54,11 +58,13 @@ namespace lightgrid {
         void cellRemove(size_t cell_node, size_t element_node);
         void cellQuery(size_t cell_node, size_t unused);
 
-        void iterateBounds(size_t node, const bounds& bounds, void (grid::*func)(size_t, size_t));
+        cell_bounds clampCellBounds(const bounds& bounds);
 
         std::vector<T> elements;
         std::vector<node> element_nodes;
         std::vector<node> cell_nodes; // The first cells in this list will never change and will be accessed directly, acting as the 2D list of cells
+
+        std::vector<bool> parent_grid;
 
         std::unordered_set<size_t> last_query;
 
@@ -102,7 +108,14 @@ namespace lightgrid {
         assert(this->cell_nodes.size() > 0 && "Insert attempted on uninitialized grid");
 
         int new_element_node = this->elementInsert(element);
-        this->iterateBounds(new_element_node, bounds, &(this->cellInsert));
+
+        cell_bounds clamped{clampCellBounds(bounds)};
+
+        for (int yy{clamped.y_start}; yy <= clamped.y_end; yy++) {
+            for (int xx{clamped.x_start}; xx <= clamped.x_end; xx++) {
+                this->cellInsert(yy*this->cell_row_size + xx, new_element_node);     
+            }
+        }
 
         return new_element_node;
     }
@@ -112,7 +125,13 @@ namespace lightgrid {
 
         assert(this->cell_nodes.size() > 0 && "Remove attempted on uninitialized grid");
 
-        this->iterateBounds(element_node, bounds, &(this->cellRemove));
+        cell_bounds clamped{clampCellBounds(bounds)};
+
+        for (int yy{clamped.y_start}; yy <= clamped.y_end; yy++) {
+            for (int xx{clamped.x_start}; xx <= clamped.x_end; xx++) {
+                this->cellRemove(yy*this->cell_row_size + xx, element_node);     
+            }
+        }
         this->elementRemove(element_node);
     }
 
@@ -137,14 +156,21 @@ namespace lightgrid {
     }
 
     template<class T>
-    template<template<typename Rtype> typename R, typename Rtype> 
-    requires insertable<R<Rtype>, Rtype>
-    R<Rtype>& grid<T>::query(const bounds& bounds, R<T>& results) {
+    template<typename R> 
+    requires insertable<R, T>
+    R& grid<T>::query(const bounds& bounds, R& results) {
 
         assert(this->cell_nodes.size() > 0 && "Query attempted on uninitialized grid");
 
         this->last_query.clear();
-        this->iterateBounds(-1, bounds, &(this->cellQuery));
+
+        cell_bounds clamped{clampCellBounds(bounds)};
+
+        for (int yy{clamped.y_start}; yy <= clamped.y_end; yy++) {
+            for (int xx{clamped.x_start}; xx <= clamped.x_end; xx++) {
+                this->cellQuery(yy*this->cell_row_size + xx, -1);     
+            }
+        }
         
         std::transform(last_query.begin(), last_query.end(), std::inserter(results, results.end()), 
             ([this](const auto& element) {
@@ -244,21 +270,19 @@ namespace lightgrid {
     }
 
     template<class T>
-    inline void grid<T>::iterateBounds(size_t node, const bounds& bounds, void (grid::*func)(size_t, size_t)) {
+    inline cell_bounds grid<T>::clampCellBounds(const bounds& bounds) {
     
-        int x_cell_start = std::clamp(bounds.x/this->cell_size, 
+        cell_bounds clamped;
+
+        clamped.x_start = std::clamp(bounds.x/this->cell_size, 
             0, this->cell_row_size-1);
-        int y_cell_start = std::clamp(bounds.y/this->cell_size, 
+        clamped.y_start = std::clamp(bounds.y/this->cell_size, 
             0, this->cell_column_size-1);
-        int x_cell_end = std::clamp((bounds.x + bounds.w)/this->cell_size,
+        clamped.x_end = std::clamp((bounds.x + bounds.w)/this->cell_size,
             0, this->cell_row_size-1);
-        int y_cell_end = std::clamp((bounds.y + bounds.h)/this->cell_size,
+        clamped.y_end = std::clamp((bounds.y + bounds.h)/this->cell_size,
             0, this->cell_column_size-1);
 
-        for (int yy{y_cell_start}; yy <= y_cell_end; yy++) {
-            for (int xx{x_cell_start}; xx <= x_cell_end; xx++) {
-                (this->*func)(yy*this->cell_row_size + xx, node);     
-            }
-        }
+        return clamped;
     }
 }

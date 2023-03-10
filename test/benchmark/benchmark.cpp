@@ -234,9 +234,9 @@ int main() {
     std::cout << "|                                             |\n";
     std::cout << "===============================================\n\n";
 
-    Test test(40, 5000, 40);
+    Test test(400, 10000, 40);
 
-    testFunction(naiveCollisionsTime, test, "Collision tests");
+    // testFunction(naiveCollisionsTime, test, "Collision tests");
     testFunction(gridCollisionsTime, test, "Collision tests w/ grid");
 
     printTest(test);
