@@ -181,7 +181,6 @@ void naiveCollisionsTime(Test& test) {
     // std::cout << "\n---No grid collision test---\n";
 
     std::vector<Entity*> results;
-    int i{0};
 
     for (int xx{0}; xx < test.num_test_entities; xx++) {
         
@@ -196,9 +195,9 @@ void naiveCollisionsTime(Test& test) {
 
         });
 
-        i += results.size();
-        results.clear();
     }
+    // std::cout << results.size() << "\n";
+    results.clear();
 }
 
 void gridCollisionsTime(Test& test) {
@@ -218,9 +217,9 @@ void gridCollisionsTime(Test& test) {
                 }
             }
         });
-
         results.clear();
     }
+    // std::cout << i << "\n";
 }
 
 int main() {
@@ -234,9 +233,9 @@ int main() {
     std::cout << "|                                             |\n";
     std::cout << "===============================================\n\n";
 
-    Test test(400, 10000, 40);
+    Test test(1000, 1000, 40);
 
-    // testFunction(naiveCollisionsTime, test, "Collision tests");
+    testFunction(naiveCollisionsTime, test, "Collision tests");
     testFunction(gridCollisionsTime, test, "Collision tests w/ grid");
 
     printTest(test);

@@ -4,6 +4,7 @@
 #include <vector>
 #include <unordered_set>
 #include <algorithm>
+#include <span>
 
 namespace lightgrid {
 
@@ -22,13 +23,13 @@ namespace lightgrid {
 
     struct node {
         node() {};
-        node(size_t element) : element{ element } {};
-        node(size_t element, size_t next) : element{ element }, next{ next } {};
+        node(int element) : element{ element } {};
+        node(int element, int next) : element{ element }, next{ next } {};
         // Index of element in element list
-        size_t element=-1;
+        int element=-1;
         // Either the index of the next element in the cell or the next element in the free list
         // -1 if the end of either list
-        size_t next=-1; 
+        int next=-1; 
     };
     /**
     * @brief Data-structure for spacial lookup.
@@ -42,9 +43,9 @@ namespace lightgrid {
         void clear();
 
         int insert(T element, const bounds& bounds);
-        void remove(size_t element_node, const bounds& bounds);
-        void update(size_t element_node, const bounds& old_bounds, const bounds& new_bounds);
-        void reserve(size_t num);
+        void remove(int element_node, const bounds& bounds);
+        void update(int element_node, const bounds& old_bounds, const bounds& new_bounds);
+        void reserve(int num);
 
         template<typename R> 
         requires insertable<R, T>
@@ -52,13 +53,14 @@ namespace lightgrid {
         
     private:
         int elementInsert(T element);
-        void elementRemove(size_t element_node);
+        void elementRemove(int element_node);
 
-        void cellInsert(size_t cell_node, size_t element_node);
-        void cellRemove(size_t cell_node, size_t element_node);
-        void cellQuery(size_t cell_node, size_t unused);
+        void cellInsert(int cell_node, int element_node);
+        void cellRemove(int cell_node, int element_node);
+        void cellQuery(int cell_node);
 
         cell_bounds clampCellBounds(const bounds& bounds);
+        void resetQuerySet();
 
         std::vector<T> elements;
         std::vector<node> element_nodes;
@@ -66,17 +68,20 @@ namespace lightgrid {
 
         std::vector<bool> parent_grid;
 
-        std::unordered_set<size_t> last_query;
+        std::vector<int> last_query;
+        std::vector<bool> query_set;
+        size_t query_size{0}; // Used to avoid clearing the vector every frame;
 
-        size_t free_element_nodes=-1; // singly linked-list of the free nodes
-        size_t free_cell_nodes=-1; 
+        int free_element_nodes{-1}; // singly linked-list of the free nodes
+        int free_cell_nodes{-1}; 
 
-        int width;
-        int height;
-        int cell_size;
-        int cell_row_size;
-        int cell_column_size;
-        size_t num_cells;
+        int width{0};
+        int height{0};
+        int cell_size{0};
+        int cell_row_size{0};
+        int cell_column_size{0};
+        int num_cells{0};
+        int num_elements{0};
     };
 
     template<class T>
@@ -117,11 +122,19 @@ namespace lightgrid {
             }
         }
 
+        this->num_elements++;
+
+        if (this->query_set.size() < this->num_elements) {
+            
+            this->last_query.resize(this->num_elements);
+            this->query_set.resize(this->num_elements);
+        }
+
         return new_element_node;
     }
 
     template<class T>
-    void grid<T>::remove(size_t element_node, const bounds& bounds) {
+    void grid<T>::remove(int element_node, const bounds& bounds) {
 
         assert(this->cell_nodes.size() > 0 && "Remove attempted on uninitialized grid");
 
@@ -133,10 +146,12 @@ namespace lightgrid {
             }
         }
         this->elementRemove(element_node);
+
+        this->num_elements--;
     }
 
     template<class T>
-    void grid<T>::update(size_t element_node, const bounds& old_bounds, const bounds& new_bounds) {
+    void grid<T>::update(int element_node, const bounds& old_bounds, const bounds& new_bounds) {
 
         assert(this->cell_nodes.size() > 0 && "Update attempted on uninitialized grid");
 
@@ -148,7 +163,7 @@ namespace lightgrid {
     }
 
     template<class T>
-    void grid<T>::reserve(size_t num) {
+    void grid<T>::reserve(int num) {
 
         this->elements.reserve(num);
         this->cell_nodes.reserve(num);
@@ -162,21 +177,23 @@ namespace lightgrid {
 
         assert(this->cell_nodes.size() > 0 && "Query attempted on uninitialized grid");
 
-        this->last_query.clear();
-
         cell_bounds clamped{clampCellBounds(bounds)};
 
         for (int yy{clamped.y_start}; yy <= clamped.y_end; yy++) {
             for (int xx{clamped.x_start}; xx <= clamped.x_end; xx++) {
-                this->cellQuery(yy*this->cell_row_size + xx, -1);     
+                this->cellQuery(yy*this->cell_row_size + xx);     
             }
         }
+
+        std::span query_span{last_query.begin(), this->query_size};
         
-        std::transform(last_query.begin(), last_query.end(), std::inserter(results, results.end()), 
+        std::transform(query_span.begin(), query_span.end(), std::inserter(results, results.end()), 
             ([this](const auto& element) {
                 return this->elements[this->element_nodes[element].element];
             })
         );
+
+        this->resetQuerySet();
 
         return results;
     }
@@ -206,7 +223,7 @@ namespace lightgrid {
     }
 
     template<class T>
-    inline void grid<T>::elementRemove(size_t element_node) {
+    inline void grid<T>::elementRemove(int element_node) {
 
         // Make the given element_node the head of the free_element_nodes list
         this->element_nodes[element_node].next = this->free_element_nodes;
@@ -214,7 +231,7 @@ namespace lightgrid {
     }
 
     template<class T>
-    inline void grid<T>::cellInsert(size_t cell_node, size_t element_node) {
+    inline void grid<T>::cellInsert(int cell_node, int element_node) {
 
         if (this->free_cell_nodes != -1) {
 
@@ -239,10 +256,10 @@ namespace lightgrid {
     }
 
     template<class T>
-    inline void grid<T>::cellRemove(size_t cell_node, size_t element_node) {
+    inline void grid<T>::cellRemove(int cell_node, int element_node) {
 
-        size_t previous_node{cell_node};
-        size_t current_node{this->cell_nodes[cell_node].next};
+        int previous_node{cell_node};
+        int current_node{this->cell_nodes[cell_node].next};
 
         // Find the element_node in the cell_node's list
         while (this->cell_nodes[current_node].element != element_node) {
@@ -258,13 +275,24 @@ namespace lightgrid {
     }
 
     template<class T>
-    inline void grid<T>::cellQuery(size_t cell_node, size_t unused) {
+    inline void grid<T>::cellQuery(int cell_node) {
 
-        size_t current_node{this->cell_nodes[cell_node].next};
+        int current_node{this->cell_nodes[cell_node].next};
 
         while (current_node != -1) {
             assert(current_node < this->cell_nodes.size() && "current_node out of bounds");
-            this->last_query.insert(this->cell_nodes[current_node].element);
+
+            int current_element{this->cell_nodes[current_node].element};
+
+            // Only add to the current query if it has not already been added
+            if (!this->query_set[current_element]) { [[unlikely]] // Don't know if this is really doing anything?
+
+                this->last_query[this->query_size] = current_element;
+                this->query_size++;
+
+                this->query_set[current_element] = true;
+            }
+
             current_node = this->cell_nodes[current_node].next;
         }
     }
@@ -284,5 +312,15 @@ namespace lightgrid {
             0, this->cell_column_size-1);
 
         return clamped;
+    }
+
+    template<class T>
+    inline void grid<T>::resetQuerySet() {
+
+        for (int i{0}; i < this->query_size; i++) {
+            this->query_set[this->last_query[i]] = false;
+        }
+
+        this->query_size = 0;
     }
 }
