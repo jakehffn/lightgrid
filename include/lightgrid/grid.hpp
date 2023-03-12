@@ -66,8 +66,6 @@ namespace lightgrid {
         std::vector<node> element_nodes;
         std::vector<node> cell_nodes; // The first cells in this list will never change and will be accessed directly, acting as the 2D list of cells
 
-        std::vector<bool> parent_grid;
-
         std::vector<int> last_query;
         std::vector<bool> query_set;
         size_t query_size{0}; // Used to avoid clearing the vector every frame;
@@ -285,7 +283,7 @@ namespace lightgrid {
             int current_element{this->cell_nodes[current_node].element};
 
             // Only add to the current query if it has not already been added
-            if (!this->query_set[current_element]) { [[unlikely]] // Don't know if this is really doing anything?
+            if (!this->query_set[current_element]) {
 
                 this->last_query[this->query_size] = current_element;
                 this->query_size++;
