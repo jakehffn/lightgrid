@@ -17,20 +17,6 @@ namespace lightgrid {
         int x,y,w,h;
     };
 
-    struct cell_bounds {
-        int x_start, x_end, y_start, y_end;
-    };
-
-    struct node {
-        node() {};
-        node(int element) : element{ element } {};
-        node(int element, int next) : element{ element }, next{ next } {};
-        // Index of element in element list
-        int element=-1;
-        // Either the index of the next element in the cell or the next element in the free list
-        // -1 if the end of either list
-        int next=-1; 
-    };
     /**
     * @brief Data-structure for spacial lookup.
     * Divides 2D coordinates into cells, allowing for insertion and lookup for 
@@ -52,6 +38,22 @@ namespace lightgrid {
         R& query(const bounds& bounds, R& results);
         
     private:
+
+        struct cell_bounds {
+            int x_start, x_end, y_start, y_end;
+        };
+
+        struct node {
+            node() {};
+            node(int element) : element{ element } {};
+            node(int element, int next) : element{ element }, next{ next } {};
+            // Index of element in element list
+            int element=-1;
+            // Either the index of the next element in the cell or the next element in the free list
+            // -1 if the end of either list
+            int next=-1; 
+        };
+
         int elementInsert(T element);
         void elementRemove(int element_node);
 
@@ -59,7 +61,7 @@ namespace lightgrid {
         void cellRemove(int cell_node, int element_node);
         void cellQuery(int cell_node);
 
-        cell_bounds clampCellBounds(const bounds& bounds);
+        grid<T>::cell_bounds clampCellBounds(const bounds& bounds);
         void resetQuerySet();
 
         std::vector<T> elements;
@@ -296,7 +298,7 @@ namespace lightgrid {
     }
 
     template<class T>
-    inline cell_bounds grid<T>::clampCellBounds(const bounds& bounds) {
+    inline grid<T>::cell_bounds grid<T>::clampCellBounds(const bounds& bounds) {
     
         cell_bounds clamped;
 
