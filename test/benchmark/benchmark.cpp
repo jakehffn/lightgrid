@@ -65,7 +65,7 @@ void printPercentage(int part, int total) {
     std::cout << "[";
     std::cout << std::setfill(' ') << std::setw(total_string_length);
     std::cout << part << "/" << total << "] ";
-    std::cout << std::setw(4) << (int)(percent*100) << "% ";  
+    std::cout << std::setw(4) << (int)(percent*100) << "% " << std::flush;  
 }
 
 void printEntity(const Entity& test_entity) {
@@ -233,10 +233,20 @@ int main() {
     std::cout << "|                                             |\n";
     std::cout << "===============================================\n\n";
 
-    Test test(1000, 1000, 40);
+    std::vector<Test> tests;
 
-    testFunction(naiveCollisionsTime, test, "Collision tests");
-    testFunction(gridCollisionsTime, test, "Collision tests w/ grid");
+    Test non_grid_test(1000, 1000, 40); // Cell size does not matter for non-grid test
+    testFunction(naiveCollisionsTime, non_grid_test, "Collision tests no grid");
 
-    printTest(test);
+    for (int it{1}; it < 10; it++) {
+
+        int cell_size{it*10};
+        tests.emplace_back(1000, 1000, cell_size);
+        testFunction(gridCollisionsTime, tests.back(), "Collision tests w/ grid (Cell size: " + std::to_string(cell_size) + ")");
+    }
+
+    printTest(non_grid_test);
+    for (auto& test : tests) {
+        printTest(test);
+    }
 }
