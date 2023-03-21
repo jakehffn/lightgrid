@@ -145,8 +145,8 @@ namespace lightgrid {
                 this->cellRemove(yy*this->cell_row_size + xx, element_node);     
             }
         }
-        this->elementRemove(element_node);
 
+        this->elementRemove(element_node);
         this->num_elements--;
     }
 
@@ -155,11 +155,23 @@ namespace lightgrid {
 
         assert(this->cell_nodes.size() > 0 && "Update attempted on uninitialized grid");
 
-        // TODO: make a specialized function for updates
-        //      Element node could be immediately reused without it every being added to freenode lists
+        // Remove from old bounds
+        cell_bounds clamped_old{clampCellBounds(old_bounds)};
 
-        this->remove(element_node, old_bounds);
-        this->insert(this->elements[this->element_nodes[element_node].element], new_bounds);
+        for (int yy{clamped_old.y_start}; yy <= clamped_old.y_end; yy++) {
+            for (int xx{clamped_old.x_start}; xx <= clamped_old.x_end; xx++) {
+                this->cellRemove(yy*this->cell_row_size + xx, element_node);     
+            }
+        }
+
+        // Insert into new bounds
+        cell_bounds clamped_new{clampCellBounds(bounds)};
+
+        for (int yy{clamped_new.y_start}; yy <= clamped_new.y_end; yy++) {
+            for (int xx{clamped_new.x_start}; xx <= clamped_new.x_end; xx++) {
+                this->cellInsert(yy*this->cell_row_size + xx, element_node);     
+            }
+        }
     }
 
     template<class T>
@@ -251,7 +263,6 @@ namespace lightgrid {
             // Create new cell node and add reference to index into element_nodes list
             this->cell_nodes.emplace_back(element_node, this->cell_nodes[cell_node].next);
             this->cell_nodes[cell_node].next = this->cell_nodes.size() - 1;
-
         }
     }
 
