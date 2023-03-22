@@ -7,7 +7,7 @@
 
 #include <lightgrid/grid.hpp>
 
-lightgrid::bounds genValidBounds(int map_width, int map_height);
+lightgrid::bounds genBounds(int map_width, int map_height);
 
 std::mt19937 gen_rand;
 
@@ -38,7 +38,7 @@ struct Test {
             this->test_entities.reserve(this->num_test_entities);
 
             for (size_t i{0}; i < this->num_test_entities; i++) {
-                this->test_entities.emplace_back(genValidBounds(this->map_width, this->map_height), i);
+                this->test_entities.emplace_back(genBounds(this->map_width, this->map_height), i);
             }
 
             // Initialize the test grid with the test entities
@@ -123,7 +123,7 @@ bool isColliding(const lightgrid::bounds& bounds_1, const lightgrid::bounds& bou
     return (bottom_1 > top_2 && bottom_2 > top_1 && right_1 > left_2 && right_2 > left_1);
 }
 
-lightgrid::bounds genValidBounds(int map_width, int map_height) {
+lightgrid::bounds genBounds(int map_width, int map_height) {
 
     int max_width{64};
     int min_width{16};
@@ -131,8 +131,8 @@ lightgrid::bounds genValidBounds(int map_width, int map_height) {
     int max_height{64};
     int min_height{16};
 
-    int w{((int)(gen_rand()%(uint_fast32_t)max_width)-min_width)+min_width};
-    int h{((int)(gen_rand()%(uint_fast32_t)max_height)-min_height)+min_height};
+    int w{(int)(gen_rand()%(uint_fast32_t)(max_width-min_width)+min_width)};
+    int h{(int)(gen_rand()%(uint_fast32_t)(max_height-min_height)+min_height)};
 
     lightgrid::bounds new_bounds {
         ((int)(gen_rand()%(uint_fast32_t)(map_width-w-1))+1),

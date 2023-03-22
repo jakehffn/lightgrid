@@ -9,12 +9,12 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/CMake/)
 
 add_executable(${PROJECT_NAME}_benchmark test/benchmark/benchmark.cpp)
 add_executable(${PROJECT_NAME}_test test/lightgrid/grid.cpp)
-add_executable(${PROJECT_NAME}_example test/example/lightgrid_example.cpp)
+add_executable(${PROJECT_NAME}_example example/lightgrid_example.cpp)
 
 target_include_directories(${PROJECT_NAME}_benchmark PUBLIC include)
 target_include_directories(${PROJECT_NAME}_test PUBLIC include)
 target_include_directories(${PROJECT_NAME}_example PUBLIC include)
 
 add_subdirectory(test/benchmark)
-add_subdirectory(test/example)
+add_subdirectory(example)
 add_subdirectory(test/lightgrid)

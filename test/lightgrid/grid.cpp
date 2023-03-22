@@ -1,5 +1,5 @@
 #include <iostream>
 
 int main() {
-    std::cout << "Hello Tests\n";
+    std::cout << "There are currently no tests\n";
 }
