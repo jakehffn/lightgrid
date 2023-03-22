@@ -6,6 +6,6 @@ Some preliminary benchmarks. Eventually it would be nice to automate a larger nu
 
 |CPU|No Grid (ms)|Grid 30 cell (ms)|
 |---|---|---|
-|Intel Core i7-10750H | 4.65796 | 0.077312602 |
+|Intel Core i7-10750H @ 2.60GHz | 4.65796 | 0.077312602 |
 
 *All benchmarks averaged over 1000 tests with 1000 entities*

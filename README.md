@@ -3,7 +3,7 @@
 lightgrid is a header-only implementation of a grid data-structure for lookups on spacial data.
 
 ## Examples 
----
+
 
 ![1,000 entities colliding](./example/gifs/grid_example_1000.gif)
 
@@ -55,6 +55,9 @@ GIFs for the following looks like noise so they won't be shown.
 *~4 FPS ~1200MB 1920x1080 grid w/ cell size 1*
 
 ---
+
+*All examples ran on Intel Core i7-10750H @ 2.60GHz*
+
 ### Note
 
 The performace of these examples is somewhat sensitive to the velocities of the entities. Cramming causes many more collision checks, and cramming is much more likely when the velocities are high relative to the size of the entities. To make the tests more *fair*, the velocity was decreased as the size of the entities was decreased.
