@@ -8,33 +8,6 @@
 
 #include <lightgrid/grid.hpp>
 
-// #define WINDOW_WIDTH 1920
-// #define WINDOW_HEIGHT 1080
-
-// // There is a performace/memory trade-off when choosing the grid cell size.
-// //      The best performance results from cell sizes near the size of the 
-// //      smallest entities within the grid.
-// // The following grid, with the cell sizes being the same as the entity sizes,
-// //      containing 100,000 entities, takes ~500MB of memory running at ~30 fps
-// // A grid with the same number of entities, but with cell sizes 10x the size
-// //      of the entities takes ~250MB of memory running at ~7 fps.
-// #define GRID_CELL_SIZE 3
-
-// #define NUM_ENTITIES 100000
-// #define LAYOUT_PADDING 1 // Number of pixels of separation between entities
-
-// #define MAX_ENTITY_WIDTH 3
-// #define MIN_ENTITY_WIDTH 3
-// #define MAX_ENTITY_HEIGHT (MAX_ENTITY_WIDTH)
-// #define MIN_ENTITY_HEIGHT (MIN_ENTITY_WIDTH)
-
-// // This collision simulation doesn't do anything fancy to deal with high-speed
-// //      entities. For tiny entities, these speeds need to be fairly low to prevent
-// //      entities from constantly flying through each other.
-// #define MAX_ENTITY_VELOCITY 15.0f
-// #define MIN_ENTITY_VELOCITY -15.0f
-
-
 #define WINDOW_WIDTH 1920
 #define WINDOW_HEIGHT 1080
 
@@ -45,21 +18,21 @@
 //      containing 100,000 entities, takes ~500MB of memory running at ~30 fps
 // A grid with the same number of entities, but with cell sizes 10x the size
 //      of the entities takes ~250MB of memory running at ~7 fps.
-#define GRID_CELL_SIZE 1
+#define GRID_CELL_SIZE 3
 
-#define NUM_ENTITIES 500000
-#define LAYOUT_PADDING 1// Number of pixels of separation between entities
+#define NUM_ENTITIES 100000
+#define LAYOUT_PADDING 1 // Number of pixels of separation between entities
 
-#define MAX_ENTITY_WIDTH 1
-#define MIN_ENTITY_WIDTH 1
+#define MAX_ENTITY_WIDTH 3
+#define MIN_ENTITY_WIDTH 3
 #define MAX_ENTITY_HEIGHT (MAX_ENTITY_WIDTH)
 #define MIN_ENTITY_HEIGHT (MIN_ENTITY_WIDTH)
 
 // This collision simulation doesn't do anything fancy to deal with high-speed
 //      entities. For tiny entities, these speeds need to be fairly low to prevent
 //      entities from constantly flying through each other.
-#define MAX_ENTITY_VELOCITY 2.0f
-#define MIN_ENTITY_VELOCITY -2.0f
+#define MAX_ENTITY_VELOCITY 10.0f
+#define MIN_ENTITY_VELOCITY -10.0f
 
 SDL_Renderer *renderer;
 SDL_Window *window;
