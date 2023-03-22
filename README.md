@@ -36,7 +36,7 @@ lightgrid is a header-only implementation of a grid data-structure for lookups o
 
 ---
 
-GIFs for the following looks like noise so they won't be shown.
+GIFs for the following look like noise so they won't be shown.
 
 **100,000 entities colliding**
 
