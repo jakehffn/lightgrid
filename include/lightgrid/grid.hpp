@@ -17,7 +17,7 @@ namespace lightgrid {
     };
 
     /**
-    * @brief Data-structure for spacial lookup.
+    * @brief Data-structure for spatial lookup.
     * Divides 2D coordinates into cells, allowing for insertion and lookup for 
     *   an arbitrary type T, based on position.
     */    
