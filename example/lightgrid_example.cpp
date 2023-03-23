@@ -445,7 +445,7 @@ int main(int argc, char **argv) {
         frame_count++;
         interval_time += delta_time;
         if (interval_time >= 1000) {
-            std::cout << "\r" << std::setprecision(5) << "FPS: " << std::setw(4) << (frame_count/(float)interval_time)*1000.0f;
+            std::cout << "\r" << std::fixed << std::setprecision(2) << "FPS: " << std::setw(10) << (frame_count/(float)interval_time)*1000.0f;
             frame_count = 0;
             interval_time = 0;
         }
