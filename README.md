@@ -1,6 +1,6 @@
 # lightgrid
 
-lightgrid is a header-only implementation of a grid data-structure for lookups on spacial data utilizing modern C++ features.
+lightgrid is a header-only implementation of a grid data-structure for lookups on spatial data utilizing modern C++ features.
 
 lightgrid allows for rapid insertion of arbitrary data types, very stable memory usage, and the ability to take avantage of the known characteristics of the inserted data.
 
