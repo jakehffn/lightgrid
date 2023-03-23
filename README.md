@@ -72,7 +72,11 @@ ToDo
 
 lightgrid is header-only, so just copy `grid.hpp` into your project and you're ready to go.
 
-## Usage Considerations
+## Usage
+
+Check out the [example project](./example/lightgrid_example.cpp) to see lightgrid in action, along with some explanation regarding implementation in your own project.
+
+### Usage Considerations
 
 From some basic testing, lightgrid has the best performance when the grid cells are around the size of the smallest entities for dense grids, and around the size of the average entity for more sparse grids. If few collisions are expected, about the same performace will be acheived using cells the size of the space between entities. Regardless, be sure to profile for your own data to get the best results.
 
