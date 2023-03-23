@@ -1,6 +1,8 @@
 # lightgrid
 
-lightgrid is a header-only implementation of a grid data-structure for lookups on spacial data.
+lightgrid is a header-only implementation of a grid data-structure for lookups on spacial data utilizing modern C++ features.
+
+lightgrid allows for rapid insertion of arbitrary data types, very stable memory usage, and the ability to take avantage of the known characteristics of the inserted data.
 
 ## Examples 
 
@@ -36,7 +38,7 @@ lightgrid is a header-only implementation of a grid data-structure for lookups o
 
 ---
 
-GIFs for the following look like noise so they won't be shown.
+### **GIFs for the following look like noise so they won't be shown:**
 
 **100,000 entities colliding**
 
@@ -63,11 +65,18 @@ GIFs for the following look like noise so they won't be shown.
 The performace of these examples is somewhat sensitive to the velocities of the entities. Cramming causes many more collision checks, and cramming is much more likely when the velocities are high relative to the size of the entities. To make the tests more *fair*, the velocity was decreased as the size of the entities was decreased.
 
 ## Implementation
+
 ToDo
 
-## Usage
+## Installation
 
-To use lightgrid, just copy `grid.hpp` into your project.
+lightgrid is header-only, so just copy `grid.hpp` into your project and you're ready to go.
+
+## Usage Considerations
+
+From some basic testing, lightgrid has the best performance when the grid cells are around the size of the smallest entities for dense grids, and around the size of the average entity for more sparse grids. If few collisions are expected, about the same performace will be acheived using cells the size of the space between entities. Regardless, be sure to profile for your own data to get the best results.
+
+While lightgrid makes some considerations to avoid poor performance for large types, the best performace will be achieved by inserting a reference or index to objects rather than the objects themselves. This will improve the performace of insertion and querying.
 
 ## Build
 
@@ -106,3 +115,8 @@ cd build
 cmake -DCMAKE_BUILD_TYPE=Release ..
 cmake --build . --target lightgrid_test
 ```
+
+## Future Plans
+
+- Function which takes another function to be applied to each result of a query wwithout the need to copy the resuls into another container.
+- Quad tree implementation.
