@@ -126,5 +126,5 @@ cmake --build . --target lightgrid_test
 
 ## Future Plans
 
-- Function which takes another function to be applied to each result of a query wwithout the need to copy the resuls into another container.
+- Iterating function which is applied to each result of a query wwithout the need to copy the results into another container.
 - Quad tree implementation.
