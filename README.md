@@ -1,11 +1,12 @@
 # lightgrid
 
-lightgrid is a header-only implementation of a grid data-structure for lookups on spatial data utilizing modern C++ features.
+**lightgrid is an header-only implementation of a grid data-structure for spacial lookups, useful for collision detection and render-culling, implemented using C++20 features.**
 
 lightgrid allows for rapid insertion of arbitrary data types, very stable memory usage, and the ability to take avantage of the known characteristics of the inserted data.
 
-## Examples 
+Currently lightgrid offers a simple interface for insertion, removal, updating, and querying of entities in the grid.
 
+## Examples
 
 ![1,000 entities colliding](./example/gifs/grid_example_1000.gif)
 
