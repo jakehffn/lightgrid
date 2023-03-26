@@ -417,7 +417,6 @@ int main(int argc, char **argv) {
     SDL_CreateWindowAndRenderer(WINDOW_WIDTH, WINDOW_HEIGHT, 0, &window, &renderer);
     
     createEntities(NUM_ENTITIES);
-
     prepareGrid();
     
     std::cout << "Number of entities: " << entities.size() << "\n";
@@ -448,10 +447,10 @@ int main(int argc, char **argv) {
         #endif
 
         SDL_RenderPresent(renderer);
-        
 
         frame_count++;
         interval_time += delta_time;
+        
         if (interval_time >= 1000) {
             std::cout << "\r" << std::fixed << std::setprecision(2) << "FPS: " << std::setw(10) << (frame_count/(float)interval_time)*1000.0f;
             frame_count = 0;

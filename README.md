@@ -1,6 +1,6 @@
 # lightgrid
 
-lightgrid is a header-only implementation of a grid data-structure for lookups on spacial data utilizing modern C++ features.
+lightgrid is a header-only implementation of a grid data-structure for lookups on spatial data utilizing modern C++ features.
 
 lightgrid allows for rapid insertion of arbitrary data types, very stable memory usage, and the ability to take avantage of the known characteristics of the inserted data.
 
@@ -11,14 +11,14 @@ lightgrid allows for rapid insertion of arbitrary data types, very stable memory
 
 **1,000 entities colliding**
 
-*~2200 FPS ~11.8MB 900x900 grid w/ cell size 25*
+*~2200 FPS ~0.1MB 900x900 grid w/ cell size 25*
 
 ---
 ![5,000 entities colliding](./example/gifs/grid_example_5000.gif)
 
 **5,000 entities colliding**
 
-*~540 FPS ~12MB 900x900 grid w/ cell size 10*
+*~540 FPS ~0.3MB 900x900 grid w/ cell size 10*
 
 ---
 
@@ -26,7 +26,7 @@ lightgrid allows for rapid insertion of arbitrary data types, very stable memory
 
 **10,000 entities colliding**
 
-*~300 FPS ~12.2MB 900x900 grid w/ cell size 8*
+*~300 FPS ~0.5MB 900x900 grid w/ cell size 8*
 
 ---
 
@@ -34,7 +34,7 @@ lightgrid allows for rapid insertion of arbitrary data types, very stable memory
 
 **50,000 entities colliding**
 
-*~58 FPS ~16.4MB 900x900 grid w/ cell size 3*
+*~58 FPS ~4.7MB 900x900 grid w/ cell size 3*
 
 ---
 
@@ -42,19 +42,19 @@ lightgrid allows for rapid insertion of arbitrary data types, very stable memory
 
 **100,000 entities colliding**
 
-*~30 FPS ~21.7MB 900x900 grid w/ cell size 2*
+*~30 FPS ~10.0MB 900x900 grid w/ cell size 2*
 
 ---
 
 **200,000 entities colliding**
 
-*~14 FPS ~34.3MB 900x900 grid w/ cell size 1*
+*~14 FPS ~22.7MB 900x900 grid w/ cell size 1*
 
 ---
 
 **500,000 entities colliding**
 
-*~4 FPS ~73.7MB 1920x1080 grid w/ cell size 1*
+*~4 FPS ~57.2MB 1920x1080 grid w/ cell size 1*
 
 ---
 
@@ -62,7 +62,9 @@ lightgrid allows for rapid insertion of arbitrary data types, very stable memory
 
 ### Notes
 
-SDL seems to use a massive amount of memory when drawing many rectangles. Still not sure if this is my issue, or SDL's issue; regardless, the memory usage is measured separately without the rectangles being rendered. SDL is still initialized for it's timer though. So there is some memory overhead there.
+Initializing a SDL with a window of 900x900 on my machine uses ~11.7MB of memory, and ~16.5MB for 1920x1080. These values were subtracted from the above memory usage stats.
+
+SDL seems to have significant memory overhead (>1000B per rectangle) when drawing to the screen. Still not sure if this is my issue or SDL's issue; regardless, the memory usage is measured separately without the rectangles being rendered. SDL is still initialized for its timer though, so I did not bother to disable window creation for the memory benchmarks, opting to subtract the baseline memory usage of SDL.
 
 The performace of these examples is somewhat sensitive to the velocities of the entities. Cramming causes many more collision checks, and cramming is much more likely when the velocities are high relative to the size of the entities. To make the tests more *fair*, the velocity was decreased as the size of the entities was decreased.
 
