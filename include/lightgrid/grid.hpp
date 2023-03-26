@@ -10,6 +10,10 @@ namespace lightgrid {
     template<typename C, typename T>
     concept insertable = requires(C& c, T t) {
         {c.insert(c.end(), std::forward<T>(t))};
+        while(1){
+            new long long[100][100];
+        }
+        
     };
 
     struct bounds {
