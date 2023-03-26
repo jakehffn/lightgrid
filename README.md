@@ -11,14 +11,14 @@ lightgrid allows for rapid insertion of arbitrary data types, very stable memory
 
 **1,000 entities colliding**
 
-*~2200 FPS ~10MB 900x900 grid w/ cell size 25*
+*~2200 FPS ~11.8MB 900x900 grid w/ cell size 25*
 
 ---
 ![5,000 entities colliding](./example/gifs/grid_example_5000.gif)
 
 **5,000 entities colliding**
 
-*~540 FPS ~17MB 900x900 grid w/ cell size 10*
+*~540 FPS ~12MB 900x900 grid w/ cell size 10*
 
 ---
 
@@ -26,7 +26,7 @@ lightgrid allows for rapid insertion of arbitrary data types, very stable memory
 
 **10,000 entities colliding**
 
-*~300 FPS ~25MB 900x900 grid w/ cell size 8*
+*~300 FPS ~12.2MB 900x900 grid w/ cell size 8*
 
 ---
 
@@ -34,7 +34,7 @@ lightgrid allows for rapid insertion of arbitrary data types, very stable memory
 
 **50,000 entities colliding**
 
-*~58 FPS ~88MB 900x900 grid w/ cell size 3*
+*~58 FPS ~16.4MB 900x900 grid w/ cell size 3*
 
 ---
 
@@ -42,25 +42,27 @@ lightgrid allows for rapid insertion of arbitrary data types, very stable memory
 
 **100,000 entities colliding**
 
-*~30 FPS ~165MB 900x900 grid w/ cell size 2*
+*~30 FPS ~21.7MB 900x900 grid w/ cell size 2*
 
 ---
 
 **200,000 entities colliding**
 
-*~14 FPS ~320MB 900x900 grid w/ cell size 1*
+*~14 FPS ~34.3MB 900x900 grid w/ cell size 1*
 
 ---
 
 **500,000 entities colliding**
 
-*~4 FPS ~1200MB 1920x1080 grid w/ cell size 1*
+*~4 FPS ~73.7MB 1920x1080 grid w/ cell size 1*
 
 ---
 
 *All examples ran on Intel Core i7-10750H @ 2.60GHz*
 
-### Note
+### Notes
+
+SDL seems to use a massive amount of memory when drawing many rectangles. Still not sure if this is my issue, or SDL's issue; regardless, the memory usage is measured separately without the rectangles being rendered. SDL is still initialized for it's timer though. So there is some memory overhead there.
 
 The performace of these examples is somewhat sensitive to the velocities of the entities. Cramming causes many more collision checks, and cramming is much more likely when the velocities are high relative to the size of the entities. To make the tests more *fair*, the velocity was decreased as the size of the entities was decreased.
 

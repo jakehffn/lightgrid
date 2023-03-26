@@ -31,8 +31,15 @@
 // This collision simulation doesn't do anything fancy to deal with high-speed
 //      entities. For tiny entities, these speeds need to be fairly low to prevent
 //      entities from constantly flying through each other.
-#define MAX_ENTITY_VELOCITY 10.0f
-#define MIN_ENTITY_VELOCITY -10.0f
+#define MAX_ENTITY_VELOCITY 5.0f
+#define MIN_ENTITY_VELOCITY -5.0f
+
+// SDL seems to use a massive amount of memory when drawing many rectangles. 
+//      Still not sure if this is my issue, or SDL's issue; regardless, the memory 
+//      usage is measured separately without the rectangles being rendered. 
+//      I may convert to an OpenGL contect in the future.
+// Setting this to true will disable SDL drawing
+#define MEASURE_MEMORY false
 
 SDL_Renderer *renderer;
 SDL_Window *window;
@@ -377,8 +384,6 @@ void prepareGrid() {
 
 void drawRects() {
 
-    lightgrid::bounds inner_ring;
-
     for (auto entity : entities) {
 
         SDL_SetRenderDrawColor(renderer, entity.color.r, entity.color.g, entity.color.b, 255);
@@ -410,8 +415,7 @@ int main(int argc, char **argv) {
 
     SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO);
     SDL_CreateWindowAndRenderer(WINDOW_WIDTH, WINDOW_HEIGHT, 0, &window, &renderer);
-
-    // createEntitiesRandom(NUM_ENTITIES);
+    
     createEntities(NUM_ENTITIES);
 
     prepareGrid();
@@ -438,9 +442,13 @@ int main(int argc, char **argv) {
         
         updatePositions(delta_time);
         resolveCollisions();
-        drawRects();
+
+        #if !(MEASURE_MEMORY)
+            drawRects();
+        #endif
 
         SDL_RenderPresent(renderer);
+        
 
         frame_count++;
         interval_time += delta_time;
