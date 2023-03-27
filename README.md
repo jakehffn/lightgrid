@@ -31,15 +31,13 @@ Currently lightgrid offers a simple interface for insertion, removal, updating, 
 
 ---
 
-![50,000 entities colliding](./example/gifs/grid_example_50000.gif)
+### **GIFs for the following look like noise so they won't be shown:**
 
 **50,000 entities colliding**
 
 *~58 FPS ~4.7MB 900x900 grid w/ cell size 3*
 
 ---
-
-### **GIFs for the following look like noise so they won't be shown:**
 
 **100,000 entities colliding**
 
