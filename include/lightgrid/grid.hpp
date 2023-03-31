@@ -65,8 +65,8 @@ namespace lightgrid {
     *   Scale is the factor to divide by when converting from world coordinates to entity coordinates. 
     *   ZBitWidth is the number of bits used for z-ordering. This will determine the size of the grid, as the number of cells will be the same of the max value with that number of bits
     */    
-    template<class T, size_t Scale, size_t ZBitWidth=8, size_t CellDepth=16u>
-    requires (ZBitWidth <= 32)
+    template<class T, size_t Scale, size_t ZBitWidth=8u, size_t CellDepth=16u>
+    requires (ZBitWidth <= sizeof(size_t)*8)
     class grid {
     public:
 
