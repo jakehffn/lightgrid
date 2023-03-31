@@ -1,15 +1,57 @@
 #pragma once
 
+#include <cstdlib>
+#include <cstdint>
 #include <cassert>
 #include <vector>
+#include <array>
 #include <algorithm>
-#include <span>
+#include <memory>
+#include <type_traits>
+
+#if _GNUC_
+#   define _unlikely(expr) (__builtin_expect(!!(expr), 0))
+#   define _likely(expr) (__builtin_expect(!!(expr), 1)
+#else
+#   define _unlikely(expr) (!!(expr))
+#   define _likely(expr) (!!(expr))
+#endif
+
+
+// using entity_t = int;
+// static constinit const size_t fixed_count = 16;
+// using callback_t = void (const entity_t&);
+
+// void traverse(const node<entity_t, fixed_count> &node, callback_t callback) {
+//     node.traverse(callback);
+// }
+
+// volatile entity_t volatile_store;
+
+// struct callback final {
+//     static void function(const entity_t & entity) {
+//         volatile_store = entity;
+//     }
+
+//     void operator()(const entity_t & __restrict entity) const {
+//         function(entity);
+//     }
+// };
+
+// void traverse2(const node<entity_t, fixed_count> &node) {
+//     node.traverse(callback{});
+// }
+
+// void traverse3(const node<entity_t, fixed_count> &node) {
+//     traverse(node, &callback::function);
+// }
+
 
 namespace lightgrid {
 
-    template<typename C, typename T>
-    concept insertable = requires(C& c, T t) {
-        {c.insert(c.end(), std::forward<T>(t))};
+    template<typename Callable, typename StorageT>
+    concept traversal_function = requires(const Callable a, StorageT &b) {
+        { a(b) } -> std::convertible_to<void>;
     };
 
     struct bounds {
@@ -19,318 +61,101 @@ namespace lightgrid {
     /**
     * @brief Data-structure for spatial lookup.
     * Divides 2D coordinates into cells, allowing for insertion and lookup for 
-    *   an arbitrary type T, based on position.
+    *   an arbitrary type T, based on position. 
+    *   Scale is the factor to divide by when converting from world coordinates to entity coordinates. 
+    *   ZBitWidth is the number of bits used for z-ordering. This will determine the size of the grid, as the number of cells will be the same of the max value with that number of bits
     */    
-    template<class T>
+    template<class T, size_t Scale, size_t ZBitWidth=8, size_t CellDepth=16u>
+    requires (ZBitWidth <= 32)
     class grid {
     public:
-        void init(int width, int height, int cell_size);
+
+        // A pointer type must be stored, but a pointer pointer can also be avoided
+        using StorageT = std::remove_pointer_t<T>*;
+
         void clear();
-
-        int insert(T element, const bounds& bounds);
-        void remove(int element_node, const bounds& bounds);
-        void update(int element_node, const bounds& old_bounds, const bounds& new_bounds);
-        void reserve(int num);
-
-        template<typename R> 
-        requires insertable<R, T>
-        R& query(const bounds& bounds, R& results);
+        void insert(StorageT entity, const bounds& bounds);
+        void remove(StorageT entity, const bounds& bounds);
+        void update(const bounds& old_bounds, const bounds& new_bounds);
+        void traverse(const bounds& bounds, traversal_function<StorageT> auto callback) const;
         
     private:
 
-        struct cell_bounds {
-            int x_start, x_end, y_start, y_end;
+        class node;
+
+        struct overflow_entity final {
+            StorageT entity;
+            node* owner;
         };
 
-        struct node {
-            node() {};
-            node(int element) : element{ element } {};
-            node(int element, int next) : element{ element }, next{ next } {};
-            // Index of element in element list
-            int element=-1;
-            // Either the index of the next element in the cell or the next element in the free list
-            // -1 if the end of either list
-            int next=-1; 
+        // overflow for everything else.
+        static std::vector<overflow_entity> global_overflow;
+
+        class node final {
+            // The minimum count where the inner loop will 'break' instead of continuing to iterate
+            // upon finding a null entity.
+            // This is done for improved branch prediction
+            static constinit const size_t early_out_min_count = 8;
+
+            // Fixed-size array for the common case.
+            // Is kept tightly-packed.
+            std::array<StorageT, CellDepth> entities;
+
+            // Count of entities for this cell in the global grid overflow.
+            std::uint32_t overflow_count = 0;
+
+        public:
+            void traverse(traversal_function<StorageT> auto callback) const {
+                for (auto* entity : entities) {
+                    if (entity) {
+                        callback(*entity);
+                    }
+                    // You can avoid this in cases where fixed_count is small enough
+                    // that the 'else' is detrimental
+                    else if constexpr (CellDepth >= early_out_min_count) {
+                        break;
+                    }
+                }
+
+                if _unlikely(overflow_count) [[unlikely]] {
+                    // I tried building a span to avoid multiple calls into non-pure
+                    // functions of std::vector, but the codegen was universally worse
+                    for (auto& entity : global_overflow) {
+                        if _unlikely(entity.owner == this) [[unlikely]] {
+                            callback(*entity.entity);
+                        }
+                    }
+                }
+            }
         };
-
-        int elementInsert(T element);
-        void elementRemove(int element_node);
-
-        void cellInsert(int cell_node, int element_node);
-        void cellRemove(int cell_node, int element_node);
-        void cellQuery(int cell_node);
-
-        grid<T>::cell_bounds clampCellBounds(const bounds& bounds);
-        void resetQuerySet();
-
-        std::vector<T> elements;
-        std::vector<node> element_nodes;
-        std::vector<node> cell_nodes; // The first cells in this list will never change and will be accessed directly, acting as the 2D list of cells
-
-        std::vector<int> last_query;
-        std::vector<bool> query_set;
-        size_t query_size{0}; // Used to avoid clearing the vector every frame;
-
-        int free_element_nodes{-1}; // singly linked-list of the free nodes
-        int free_cell_nodes{-1}; 
-
-        int width{0};
-        int height{0};
-        int cell_size{0};
-        int cell_row_size{0};
-        int cell_column_size{0};
-        int num_cells{0};
-        int num_elements{0};
     };
 
-    template<class T>
-    void grid<T>::init(int width, int height, int cell_size) {
+    template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
+    void grid<T, Scale, ZBitWidth, CellDepth>::clear() {
 
-        this->width = width;
-        this->height = height;
-        this->cell_size = cell_size;
-        this->cell_row_size = (width+cell_size-1)/cell_size;
-        this->cell_column_size = (height+cell_size-1)/cell_size;
-
-        this->clear();
-    }
-
-    template<class T>
-    void grid<T>::clear() {
-
-        this->elements.clear();
-        this->element_nodes.clear();
-        this->cell_nodes.clear();
-
-        this->num_cells = this->cell_row_size * ((this->height+this->cell_size-1)/this->cell_size);
-        this->cell_nodes.resize(num_cells);
-    }
-
-    template<class T>
-    int grid<T>::insert(T element, const bounds& bounds) {
-
-        assert(this->cell_nodes.size() > 0 && "Insert attempted on uninitialized grid");
-
-        int new_element_node = this->elementInsert(element);
-
-        cell_bounds clamped{clampCellBounds(bounds)};
-
-        for (int yy{clamped.y_start}; yy <= clamped.y_end; yy++) {
-            for (int xx{clamped.x_start}; xx <= clamped.x_end; xx++) {
-                this->cellInsert(yy*this->cell_row_size + xx, new_element_node);     
-            }
-        }
-
-        this->num_elements++;
-
-        if (this->query_set.size() < this->num_elements) {
-            
-            this->last_query.resize(this->num_elements);
-            this->query_set.resize(this->num_elements);
-        }
-
-        return new_element_node;
-    }
-
-    template<class T>
-    void grid<T>::remove(int element_node, const bounds& bounds) {
-
-        assert(this->cell_nodes.size() > 0 && "Remove attempted on uninitialized grid");
-
-        cell_bounds clamped{clampCellBounds(bounds)};
-
-        for (int yy{clamped.y_start}; yy <= clamped.y_end; yy++) {
-            for (int xx{clamped.x_start}; xx <= clamped.x_end; xx++) {
-                this->cellRemove(yy*this->cell_row_size + xx, element_node);     
-            }
-        }
-
-        this->elementRemove(element_node);
-        this->num_elements--;
-    }
-
-    template<class T>
-    void grid<T>::update(int element_node, const bounds& old_bounds, const bounds& new_bounds) {
-
-        assert(this->cell_nodes.size() > 0 && "Update attempted on uninitialized grid");
-
-        // Remove from old bounds
-        cell_bounds clamped_old{clampCellBounds(old_bounds)};
-
-        for (int yy{clamped_old.y_start}; yy <= clamped_old.y_end; yy++) {
-            for (int xx{clamped_old.x_start}; xx <= clamped_old.x_end; xx++) {
-                this->cellRemove(yy*this->cell_row_size + xx, element_node);     
-            }
-        }
-
-        // Insert into new bounds
-        cell_bounds clamped_new{clampCellBounds(new_bounds)};
-
-        for (int yy{clamped_new.y_start}; yy <= clamped_new.y_end; yy++) {
-            for (int xx{clamped_new.x_start}; xx <= clamped_new.x_end; xx++) {
-                this->cellInsert(yy*this->cell_row_size + xx, element_node);     
-            }
-        }
-    }
-
-    template<class T>
-    void grid<T>::reserve(int num) {
-
-        this->elements.reserve(num);
-        this->cell_nodes.reserve(num);
-        this->element_nodes.reserve(num);
-    }
-
-    template<class T>
-    template<typename R> 
-    requires insertable<R, T>
-    R& grid<T>::query(const bounds& bounds, R& results) {
-
-        assert(this->cell_nodes.size() > 0 && "Query attempted on uninitialized grid");
-
-        cell_bounds clamped{clampCellBounds(bounds)};
-
-        for (int yy{clamped.y_start}; yy <= clamped.y_end; yy++) {
-            for (int xx{clamped.x_start}; xx <= clamped.x_end; xx++) {
-                this->cellQuery(yy*this->cell_row_size + xx);     
-            }
-        }
-
-        std::span query_span{last_query.begin(), this->query_size};
         
-        std::transform(query_span.begin(), query_span.end(), std::inserter(results, results.end()), 
-            ([this](const auto& element) {
-                return this->elements[this->element_nodes[element].element];
-            })
-        );
-
-        this->resetQuerySet();
-
-        return results;
     }
 
-    template<class T>
-    inline int grid<T>::elementInsert(T element) {
+    template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
+    void grid<T, Scale, ZBitWidth, CellDepth>::insert(StorageT entity, const bounds& bounds) {
 
-        int new_element_node;
-
-        if (this->free_element_nodes != -1) {
-
-            // Use the first item in the linked list and move the head to the next free node
-            new_element_node = this->free_element_nodes;
-            free_element_nodes = this->element_nodes[this->free_element_nodes].next;
-
-            this->elements[element_nodes[new_element_node].element] = element;
-
-        } else {
-
-            // Create new element node and add reference to index into elements list
-            new_element_node = this->element_nodes.size();
-            this->element_nodes.emplace_back(this->elements.size());
-            this->elements.push_back(element);
-        }
-
-        return new_element_node;
+       
     }
 
-    template<class T>
-    inline void grid<T>::elementRemove(int element_node) {
+    template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
+    void grid<T, Scale, ZBitWidth, CellDepth>::remove(StorageT entity, const bounds& bounds) {
 
-        // Make the given element_node the head of the free_element_nodes list
-        this->element_nodes[element_node].next = this->free_element_nodes;
-        this->free_element_nodes = element_node;
+        
     }
 
-    template<class T>
-    inline void grid<T>::cellInsert(int cell_node, int element_node) {
+    template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
+    void grid<T, Scale, ZBitWidth, CellDepth>::update(const bounds& old_bounds, const bounds& new_bounds) {
 
-        if (this->free_cell_nodes != -1) {
-
-            // Use element of free node as scratchpad for next free node
-            this->cell_nodes[this->free_cell_nodes].element = this->cell_nodes[this->free_cell_nodes].next;
-
-            // Move head of cell's linked list to the free node
-            this->cell_nodes[this->free_cell_nodes].next = this->cell_nodes[cell_node].next;
-            this->cell_nodes[cell_node].next = this->free_cell_nodes;
-
-            // Move head of free nodes to the value in scratchpad and set head of cell to the element node
-            this->free_cell_nodes = this->cell_nodes[this->free_cell_nodes].element;
-            this->cell_nodes[this->cell_nodes[cell_node].next].element = element_node;
-
-        } else {
-
-            // Create new cell node and add reference to index into element_nodes list
-            this->cell_nodes.emplace_back(element_node, this->cell_nodes[cell_node].next);
-            this->cell_nodes[cell_node].next = this->cell_nodes.size() - 1;
-        }
+        
     }
 
-    template<class T>
-    inline void grid<T>::cellRemove(int cell_node, int element_node) {
+    template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
+    void grid<T, Scale, ZBitWidth, CellDepth>::traverse(const bounds& bounds, traversal_function<StorageT> auto callback) const {
 
-        int previous_node{cell_node};
-        int current_node{this->cell_nodes[cell_node].next};
-
-        // Find the element_node in the cell_node's list
-        while (this->cell_nodes[current_node].element != element_node) {
-            previous_node = current_node;
-            current_node = this->cell_nodes[current_node].next;
-        }
-
-        // Remove the cell_node containing element_node
-        this->cell_nodes[previous_node].next = this->cell_nodes[current_node].next;
-        // Make the currentNode the head of the free_cell_nodes list 
-        this->cell_nodes[current_node].next = this->free_cell_nodes;
-        this->free_cell_nodes = current_node;
-    }
-
-    template<class T>
-    inline void grid<T>::cellQuery(int cell_node) {
-
-        int current_node{this->cell_nodes[cell_node].next};
-
-        while (current_node != -1) {
-            assert(current_node < this->cell_nodes.size() && "current_node out of bounds");
-
-            int current_element{this->cell_nodes[current_node].element};
-
-            // Only add to the current query if it has not already been added
-            if (!this->query_set[current_element]) {
-
-                this->last_query[this->query_size] = current_element;
-                this->query_size++;
-
-                this->query_set[current_element] = true;
-            }
-
-            current_node = this->cell_nodes[current_node].next;
-        }
-    }
-
-    template<class T>
-    inline grid<T>::cell_bounds grid<T>::clampCellBounds(const bounds& bounds) {
-    
-        cell_bounds clamped;
-
-        clamped.x_start = std::clamp(bounds.x/this->cell_size, 
-            0, this->cell_row_size-1);
-        clamped.y_start = std::clamp(bounds.y/this->cell_size, 
-            0, this->cell_column_size-1);
-        clamped.x_end = std::clamp((bounds.x + bounds.w)/this->cell_size,
-            0, this->cell_row_size-1);
-        clamped.y_end = std::clamp((bounds.y + bounds.h)/this->cell_size,
-            0, this->cell_column_size-1);
-
-        return clamped;
-    }
-
-    template<class T>
-    inline void grid<T>::resetQuerySet() {
-
-        for (int i{0}; i < this->query_size; i++) {
-            this->query_set[this->last_query[i]] = false;
-        }
-
-        this->query_size = 0;
     }
 }
