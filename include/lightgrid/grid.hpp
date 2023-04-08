@@ -10,11 +10,11 @@
 #include <type_traits>
 
 #if _GNUC_
-#   define _unlikely(expr) (__builtin_expect(!!(expr), 0))
-#   define _likely(expr) (__builtin_expect(!!(expr), 1)
+#   define _unlikely(expr) (__builtin_expect((bool)(expr), 0))
+#   define _likely(expr) (__builtin_expect((bool)(expr), 1)
 #else
-#   define _unlikely(expr) (!!(expr))
-#   define _likely(expr) (!!(expr))
+#   define _unlikely(expr) ((bool)(expr))
+#   define _likely(expr) ((bool)(expr))
 #endif
 
 
