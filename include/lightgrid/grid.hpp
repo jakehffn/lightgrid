@@ -1,3 +1,5 @@
+// When using GCC, compile with the -mbmi2 flag in order to take advantage of 
+
 #pragma once
 
 #include <cstdlib>
@@ -9,13 +11,19 @@
 #include <memory>
 #include <type_traits>
 
-#if _GNUC_
-#   define _unlikely(expr) (__builtin_expect((bool)(expr), 0))
-#   define _likely(expr) (__builtin_expect((bool)(expr), 1)
-#else
-#   define _unlikely(expr) ((bool)(expr))
-#   define _likely(expr) ((bool)(expr))
+#if defined(__BMI2__) && (defined(__GNUC__) || defined(__llvm__)) && defined(__x86_64__)
+    #include <immintrin.h>
 #endif
+
+#if defined(__GNUC__)
+    #define UNLIKELY(expr) (__builtin_expect((bool)(expr), 0))
+    #define LIKELY(expr) (__builtin_expect((bool)(expr), 1))
+#else
+    #define UNLIKELY(expr) ((bool)(expr))
+    #define LIKELY(expr) ((bool)(expr))
+#endif
+
+
 
 
 // using entity_t = int;
@@ -88,6 +96,9 @@ namespace lightgrid {
             node* owner;
         };
 
+        inline uint64_t interleave_with_zeros(uint32_t input) const;
+        inline uint64_t interleave(uint32_t x, uint32_t y) const;
+
         // overflow for everything else.
         static std::vector<overflow_entity> global_overflow;
 
@@ -101,12 +112,53 @@ namespace lightgrid {
             // Is kept tightly-packed.
             std::array<StorageT, CellDepth> entities;
 
-            // Count of entities for this cell in the global grid overflow.
+            // Count of entities in global_overflow for cell
             std::uint32_t overflow_count = 0;
 
         public:
+            void insert(StorageT new_entity) {
+
+                for (auto& entity : this->entities) {
+                    if (!entity) {
+                        entity = new_entity;
+                        return;
+                    }
+                }  
+
+                global_overflow.emplace_back(entity, this);
+                this->overflow_count++;
+            }
+
+            void remove(StorageT old_entity) {
+
+                // Swap the old entity with the last in the cell
+                size_t old_pos;
+                
+                for (size_t curr{0}; curr < CellDepth; curr++) {
+                    if (this->entities[curr] == old_entity) {
+                        old_pos = curr;
+
+                    } else if (!this->entities[curr]) {
+
+                        this->entities[old_pos] = this->entities[curr-1];
+                        return;
+                    }
+                }
+
+                for (auto it{global_overflow.begin()}; it != global_overflow.end();) {
+                    if UNLIKELY(entity.owner == this) [[unlikely]] {
+
+                        global_overflow.erase(it);
+                        this->overflow_count--;
+                        return;
+                    }
+                    it++;
+                }
+            }
+
             void traverse(traversal_function<StorageT> auto callback) const {
-                for (auto* entity : entities) {
+
+                for (auto* entity : this->entities) {
                     if (entity) {
                         callback(*entity);
                     }
@@ -117,11 +169,11 @@ namespace lightgrid {
                     }
                 }
 
-                if _unlikely(overflow_count) [[unlikely]] {
+                if UNLIKELY(this->overflow_count) [[unlikely]] {
                     // I tried building a span to avoid multiple calls into non-pure
                     // functions of std::vector, but the codegen was universally worse
-                    for (auto& entity : global_overflow) {
-                        if _unlikely(entity.owner == this) [[unlikely]] {
+                    for (auto& entity : this->global_overflow) {
+                        if UNLIKELY(entity.owner == this) [[unlikely]] {
                             callback(*entity.entity);
                         }
                     }
@@ -158,4 +210,33 @@ namespace lightgrid {
     void grid<T, Scale, ZBitWidth, CellDepth>::traverse(const bounds& bounds, traversal_function<StorageT> auto callback) const {
 
     }
+
+    template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
+    inline uint64_t grid<T, Scale, ZBitWidth, CellDepth>::interleave_with_zeros(uint32_t input) const {
+
+        uint64_t res = input;
+        res = (res | (res << 16)) & 0x0000ffff0000ffff;
+        res = (res | (res << 8 )) & 0x00ff00ff00ff00ff;
+        res = (res | (res << 4 )) & 0x0f0f0f0f0f0f0f0f;
+        res = (res | (res << 2 )) & 0x3333333333333333;
+        res = (res | (res << 1 )) & 0x5555555555555555;
+        return res;
+    }
+
+    // In the case that _pdep_u64 is unavailable, use a traditional algorithm for interleaving
+    template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
+    #if defined(__GNUC__) || defined(__llvm__)
+        __attribute__ ((target ("default")))
+    #endif
+    inline uint64_t grid<T, Scale, ZBitWidth, CellDepth>::interleave(uint32_t x, uint32_t y) const {
+        return interleave_with_zeros(x) | (interleave_with_zeros(y) << 1);
+    }
+
+    #if defined(__BMI2__) && (defined(__GNUC__) || defined(__llvm__)) && defined(__x86_64__)
+        template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
+        __attribute__ ((target ("bmi2")))
+        inline uint64_t grid<T, Scale, ZBitWidth, CellDepth>::interleave(uint32_t x, uint32_t y) const {
+            return _pdep_u64(y,0xaaaaaaaaaaaaaaaa) | _pdep_u64(x, 0x5555555555555555);
+        }
+    #endif
 }
