@@ -57,8 +57,8 @@
 
 namespace lightgrid {
 
-    template<typename Callable, typename StorageT>
-    concept traversal_function = requires(const Callable a, StorageT &b) {
+    template<typename Callable, typename T>
+    concept traversal_function = requires(const Callable a, T &b) {
         { a(b) } -> std::convertible_to<void>;
     };
 
@@ -84,10 +84,13 @@ namespace lightgrid {
         void clear();
         void insert(StorageT entity, const bounds& bounds);
         void remove(StorageT entity, const bounds& bounds);
-        void update(const bounds& old_bounds, const bounds& new_bounds);
+        void update(StorageT entity, const bounds& old_bounds, const bounds& new_bounds);
         void traverse(const bounds& bounds, traversal_function<StorageT> auto callback) const;
         
     private:
+
+        // A mask for wrapping z-orders outside the bounds of the grid
+        static constinit const uint64_t wrapping_bit_mask = (1 << (ZBitWidth + 1)) - 1;
 
         class node;
 
@@ -96,9 +99,11 @@ namespace lightgrid {
             node* owner;
         };
 
+        inline void iterBounds(const bounds& bounds, traversal_function<uint64_t> auto iter_func);
         inline uint64_t interleave_with_zeros(uint32_t input) const;
         inline uint64_t interleave(uint32_t x, uint32_t y) const;
 
+        std::array<node, 1 << ZBitWidth> nodes;
         // overflow for everything else.
         static std::vector<overflow_entity> global_overflow;
 
@@ -191,24 +196,102 @@ namespace lightgrid {
     template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
     void grid<T, Scale, ZBitWidth, CellDepth>::insert(StorageT entity, const bounds& bounds) {
 
-       
+        this->iterBounds(bounds, [entity](int cell) {
+            this->nodes[cell].insert(entity);
+        });
     }
 
     template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
     void grid<T, Scale, ZBitWidth, CellDepth>::remove(StorageT entity, const bounds& bounds) {
 
-        
+        this->iterBounds(bounds, [entity](int cell) {
+            this->nodes[cell].remove(entity);
+        });
     }
 
     template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
-    void grid<T, Scale, ZBitWidth, CellDepth>::update(const bounds& old_bounds, const bounds& new_bounds) {
+    void grid<T, Scale, ZBitWidth, CellDepth>::update(StorageT entity, const bounds& old_bounds, const bounds& new_bounds) {
 
-        
+        int old_bounds_it_width{(bounds.w + Scale - 1)/Scale};
+        int old_bounds_it_height{(bounds.h + Scale - 1)/Scale};
+        int old_bounds_it_x{bounds.x/Scale};
+        int old_bounds_it_y{bounds.y/Scale};
+
+        int new_bounds_it_width{(bounds.w + Scale - 1)/Scale};  //    |-----|
+        int new_bounds_it_height{(bounds.h + Scale - 1)/Scale}; //    | |---|-|
+        int new_bounds_it_x{bounds.x/Scale};                    //    |-|---| |
+        int new_bounds_it_y{bounds.y/Scale};                    //      |-----|
+
+        // Deal with top strip                            
+        if (old_bounds_it_y < new_bounds_it_y) {                
+
+            int end = std::min(new_bounds_it_y, old_bounds_it_y + old_bounds_it_height);
+            // Remove top strip 
+            for (int it_y{old_bounds_it_y}; it_y < end; it_y++) {
+                for (int it_x{0}; it_x < old_bounds_it_width) {
+                    this->nodes[interleave(old_bounds_it_x + it_x, it_y)].remove(entity);
+                }
+            }    
+
+        } else {
+
+            int end = std::min(old_bounds_it_y, new_bounds_it_y + new_bounds_it_height);
+            // Add top strip 
+            for (int it_y{new_bounds_it_y}; it_y < end; it_y++) {
+                for (int it_x{0}; it_x < new_bounds_it_width) {
+                    this->nodes[interleave(new_bounds_it_x + it_x, it_y)].insert(entity);
+                }
+            }   
+        }       
+
+        // Deal with bottom strip                              
+        if (old_bounds_it_y + old_bounds_it_height < new_bounds_it_y + old_bounds_it_height) {                
+
+            int end = std::min(new_bounds_it_y, old_bounds_it_y + old_bounds_it_height);
+            // Remove bottom strip 
+            for (int it_y{old_bounds_it_y}; it_y < end; it_y++) {
+                for (int it_x{0}; it_x < old_bounds_it_width) {
+                    this->nodes[interleave(old_bounds_it_x + it_x, it_y)].remove(entity);
+                }
+            }    
+
+        } else {
+
+            int end = std::min(old_bounds_it_y, new_bounds_it_y + new_bounds_it_height);
+            // Add bottom strip 
+            for (int it_y{new_bounds_it_y}; it_y < end; it_y++) {
+                for (int it_x{0}; it_x < new_bounds_it_width) {
+                    this->nodes[interleave(new_bounds_it_x + it_x, it_y)].insert(entity);
+                }
+            }   
+        }                                                       
+
+        if (old_bounds_it_x < new_bounds_it_x) {                    
+                                                                        
+        }
     }
 
     template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
     void grid<T, Scale, ZBitWidth, CellDepth>::traverse(const bounds& bounds, traversal_function<StorageT> auto callback) const {
 
+        this->iterBounds(bounds, [callback](int cell) {
+            this->nodes[cell].traverse(callback);
+        });
+    }
+
+    template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
+    inline void grid<T, Scale, ZBitWidth, CellDepth>::iterBounds(const bounds& bounds, traversal_function<uint64_t> auto iter_func) {
+
+        int bounds_it_width{(bounds.w + Scale - 1)/Scale};
+        int bounds_it_height{(bounds.h + Scale - 1)/Scale};
+        int bounds_it_x{bounds.x/Scale};
+        int bounds_it_y{bounds.y/Scale};
+
+        for (int it_y{0}; it_y < bounds_it_height; it_y++) {
+            for (int it_x{0}; it_x < bounds_it_width; it_x++) {
+                iter_func(interleave(bounds_it_x + it_x, bounds_it_y + it_y));
+            }
+        }
     }
 
     template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
