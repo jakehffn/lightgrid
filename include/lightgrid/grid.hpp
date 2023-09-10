@@ -23,40 +23,7 @@
     #define LIKELY(expr) ((bool)(expr))
 #endif
 
-
-
-
-// using entity_t = int;
-// static constinit const size_t fixed_count = 16;
-// using callback_t = void (const entity_t&);
-
-// void traverse(const node<entity_t, fixed_count> &node, callback_t callback) {
-//     node.traverse(callback);
-// }
-
-// volatile entity_t volatile_store;
-
-// struct callback final {
-//     static void function(const entity_t & entity) {
-//         volatile_store = entity;
-//     }
-
-//     void operator()(const entity_t & __restrict entity) const {
-//         function(entity);
-//     }
-// };
-
-// void traverse2(const node<entity_t, fixed_count> &node) {
-//     node.traverse(callback{});
-// }
-
-// void traverse3(const node<entity_t, fixed_count> &node) {
-//     traverse(node, &callback::function);
-// }
-
-
 namespace lightgrid {
-
     template<typename Callable, typename T>
     concept traversal_function = requires(const Callable a, T &b) {
         { a(b) } -> std::convertible_to<void>;
@@ -70,42 +37,38 @@ namespace lightgrid {
     * @brief Data-structure for spatial lookup.
     * Divides 2D coordinates into cells, allowing for insertion and lookup for 
     *   an arbitrary type T, based on position. 
-    *   Scale is the factor to divide by when converting from world coordinates to entity coordinates. 
-    *   ZBitWidth is the number of bits used for z-ordering. This will determine the size of the grid, as the number of cells will be the same of the max value with that number of bits
+    *   CellSize determines the number of bounds coordinate units mapped to a single node
+    *   ZBitWidth is the number of bits used for z-ordering. This will determine the number of nodes used (2^ZBitWidth)
     */    
-    template<class T, size_t Scale, size_t ZBitWidth=8u, size_t CellDepth=16u>
-    requires (ZBitWidth <= sizeof(size_t)*8)
+    template<class T, int CellSize, size_t ZBitWidth=16u, size_t CellDepth=16u>
+    requires (ZBitWidth <= sizeof(size_t)*8 && CellDepth < 256)
     class grid {
     public:
-
-        // A pointer type must be stored, but a pointer pointer can also be avoided
-        using StorageT = std::remove_pointer_t<T>*;
-
         void clear();
-        void insert(StorageT entity, const bounds& bounds);
-        void remove(StorageT entity, const bounds& bounds);
-        void update(StorageT entity, const bounds& old_bounds, const bounds& new_bounds);
-        void traverse(const bounds& bounds, traversal_function<StorageT> auto callback) const;
+        void insert(T entity, const bounds& bounds);
+        void remove(T entity, const bounds& bounds);
+        void update(T entity, const bounds& old_bounds, const bounds& new_bounds);
+        void traverse(const bounds& bounds, traversal_function<T> auto callback);
         
     private:
-
         // A mask for wrapping z-orders outside the bounds of the grid
-        static constinit const uint64_t wrapping_bit_mask = (1 << (ZBitWidth + 1)) - 1;
+        static constinit const uint64_t wrapping_bit_mask{(1 << ZBitWidth) - 1};
 
         class node;
 
         struct overflow_entity final {
-            StorageT entity;
+            T entity;
             node* owner;
         };
 
-        inline void iterBounds(const bounds& bounds, traversal_function<uint64_t> auto iter_func);
+        inline void iter_bounds(const bounds& bounds, traversal_function<uint64_t> auto iter_func);
+        inline uint64_t z_order(uint32_t x, uint32_t y) const;
         inline uint64_t interleave_with_zeros(uint32_t input) const;
         inline uint64_t interleave(uint32_t x, uint32_t y) const;
 
         std::array<node, 1 << ZBitWidth> nodes;
         // overflow for everything else.
-        static std::vector<overflow_entity> global_overflow;
+        inline static std::vector<overflow_entity> global_overflow;
 
         class node final {
             // The minimum count where the inner loop will 'break' instead of continuing to iterate
@@ -115,71 +78,65 @@ namespace lightgrid {
 
             // Fixed-size array for the common case.
             // Is kept tightly-packed.
-            std::array<StorageT, CellDepth> entities;
+            std::array<T, CellDepth> entities;
+            std::uint8_t size{0};
 
             // Count of entities in global_overflow for cell
-            std::uint32_t overflow_count = 0;
+            std::uint32_t overflow_count{0};
 
         public:
-            void insert(StorageT new_entity) {
-
-                for (auto& entity : this->entities) {
-                    if (!entity) {
-                        entity = new_entity;
-                        return;
-                    }
-                }  
-
-                global_overflow.emplace_back(entity, this);
-                this->overflow_count++;
+            void insert(T new_entity) {
+                if LIKELY(this->size < CellDepth) [[likely]] {
+                    this->entities[this->size] = new_entity;
+                    this->size++;
+                } else {
+                    grid<T, CellSize, ZBitWidth, CellDepth>::global_overflow.emplace_back(new_entity, this);
+                    this->overflow_count++;
+                }
             }
 
-            void remove(StorageT old_entity) {
-
-                // Swap the old entity with the last in the cell
-                size_t old_pos;
-                
+            void remove(T old_entity) {
+                // Swap the old entity with the last in the cell     
                 for (size_t curr{0}; curr < CellDepth; curr++) {
                     if (this->entities[curr] == old_entity) {
-                        old_pos = curr;
-
-                    } else if (!this->entities[curr]) {
-
-                        this->entities[old_pos] = this->entities[curr-1];
+                        this->entities[curr] = this->entities[this->size-1];
+                        this->size--;
                         return;
                     }
                 }
-
-                for (auto it{global_overflow.begin()}; it != global_overflow.end();) {
-                    if UNLIKELY(entity.owner == this) [[unlikely]] {
-
-                        global_overflow.erase(it);
+                for (
+                    auto it{grid<T, CellSize, ZBitWidth, CellDepth>::global_overflow.begin()}; 
+                    it != grid<T, CellSize, ZBitWidth, CellDepth>::global_overflow.end();
+                    it++
+                ) {
+                    if UNLIKELY(it->owner == this) [[unlikely]] {
+                        grid<T, CellSize, ZBitWidth, CellDepth>::global_overflow.erase(it);
                         this->overflow_count--;
                         return;
                     }
-                    it++;
                 }
             }
 
-            void traverse(traversal_function<StorageT> auto callback) const {
-
-                for (auto* entity : this->entities) {
-                    if (entity) {
-                        callback(*entity);
+            void traverse(traversal_function<T> auto callback) const {
+                if constexpr (CellDepth >= early_out_min_count) {
+                    for (size_t curr{0}; curr < this->size; curr++) {
+                        callback(this->entities[curr]);
                     }
-                    // You can avoid this in cases where fixed_count is small enough
-                    // that the 'else' is detrimental
-                    else if constexpr (CellDepth >= early_out_min_count) {
-                        break;
+                } else {
+                    for (size_t curr{0}; curr < CellDepth; curr++) {
+                        if (curr < this->size) {
+                            callback(this->entities[curr]);
+                        }
                     }
                 }
 
                 if UNLIKELY(this->overflow_count) [[unlikely]] {
+                    // (From Reddit guy)
                     // I tried building a span to avoid multiple calls into non-pure
                     // functions of std::vector, but the codegen was universally worse
-                    for (auto& entity : this->global_overflow) {
+                    for (auto& entity : grid<T, CellSize, ZBitWidth, CellDepth>::global_overflow) {
                         if UNLIKELY(entity.owner == this) [[unlikely]] {
-                            callback(*entity.entity);
+                            callback(entity.entity);
                         }
                     }
                 }
@@ -187,116 +144,73 @@ namespace lightgrid {
         };
     };
 
-    template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
-    void grid<T, Scale, ZBitWidth, CellDepth>::clear() {
-
-        
+    template<class T, int CellSize, size_t ZBitWidth, size_t CellDepth>
+    requires (ZBitWidth <= sizeof(size_t)*8 && CellDepth < 256)
+    void grid<T, CellSize, ZBitWidth, CellDepth>::clear() {
+        for (auto& node : this->nodes) {
+            node.size = 0;
+            node.overflow_count = 0;
+        }
+        grid<T, CellSize, ZBitWidth, CellDepth>::global_overflow.clear();
     }
 
-    template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
-    void grid<T, Scale, ZBitWidth, CellDepth>::insert(StorageT entity, const bounds& bounds) {
-
-        this->iterBounds(bounds, [entity](int cell) {
+    template<class T, int CellSize, size_t ZBitWidth, size_t CellDepth>
+    requires (ZBitWidth <= sizeof(size_t)*8 && CellDepth < 256)
+    void grid<T, CellSize, ZBitWidth, CellDepth>::insert(T entity, const bounds& bounds) {
+        this->iter_bounds(bounds, [this, entity](int cell) {
             this->nodes[cell].insert(entity);
         });
     }
 
-    template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
-    void grid<T, Scale, ZBitWidth, CellDepth>::remove(StorageT entity, const bounds& bounds) {
-
-        this->iterBounds(bounds, [entity](int cell) {
+    template<class T, int CellSize, size_t ZBitWidth, size_t CellDepth>
+    requires (ZBitWidth <= sizeof(size_t)*8 && CellDepth < 256)
+    void grid<T, CellSize, ZBitWidth, CellDepth>::remove(T entity, const bounds& bounds) {
+        this->iter_bounds(bounds, [this, entity](int cell) {
             this->nodes[cell].remove(entity);
         });
     }
 
-    template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
-    void grid<T, Scale, ZBitWidth, CellDepth>::update(StorageT entity, const bounds& old_bounds, const bounds& new_bounds) {
-
-        int old_bounds_it_width{(bounds.w + Scale - 1)/Scale};
-        int old_bounds_it_height{(bounds.h + Scale - 1)/Scale};
-        int old_bounds_it_x{bounds.x/Scale};
-        int old_bounds_it_y{bounds.y/Scale};
-
-        int new_bounds_it_width{(bounds.w + Scale - 1)/Scale};  //    |-----|
-        int new_bounds_it_height{(bounds.h + Scale - 1)/Scale}; //    | |---|-|
-        int new_bounds_it_x{bounds.x/Scale};                    //    |-|---| |
-        int new_bounds_it_y{bounds.y/Scale};                    //      |-----|
-
-        // Deal with top strip                            
-        if (old_bounds_it_y < new_bounds_it_y) {                
-
-            int end = std::min(new_bounds_it_y, old_bounds_it_y + old_bounds_it_height);
-            // Remove top strip 
-            for (int it_y{old_bounds_it_y}; it_y < end; it_y++) {
-                for (int it_x{0}; it_x < old_bounds_it_width) {
-                    this->nodes[interleave(old_bounds_it_x + it_x, it_y)].remove(entity);
-                }
-            }    
-
-        } else {
-
-            int end = std::min(old_bounds_it_y, new_bounds_it_y + new_bounds_it_height);
-            // Add top strip 
-            for (int it_y{new_bounds_it_y}; it_y < end; it_y++) {
-                for (int it_x{0}; it_x < new_bounds_it_width) {
-                    this->nodes[interleave(new_bounds_it_x + it_x, it_y)].insert(entity);
-                }
-            }   
-        }       
-
-        // Deal with bottom strip                              
-        if (old_bounds_it_y + old_bounds_it_height < new_bounds_it_y + old_bounds_it_height) {                
-
-            int end = std::min(new_bounds_it_y, old_bounds_it_y + old_bounds_it_height);
-            // Remove bottom strip 
-            for (int it_y{old_bounds_it_y}; it_y < end; it_y++) {
-                for (int it_x{0}; it_x < old_bounds_it_width) {
-                    this->nodes[interleave(old_bounds_it_x + it_x, it_y)].remove(entity);
-                }
-            }    
-
-        } else {
-
-            int end = std::min(old_bounds_it_y, new_bounds_it_y + new_bounds_it_height);
-            // Add bottom strip 
-            for (int it_y{new_bounds_it_y}; it_y < end; it_y++) {
-                for (int it_x{0}; it_x < new_bounds_it_width) {
-                    this->nodes[interleave(new_bounds_it_x + it_x, it_y)].insert(entity);
-                }
-            }   
-        }                                                       
-
-        if (old_bounds_it_x < new_bounds_it_x) {                    
-                                                                        
-        }
+    template<class T, int CellSize, size_t ZBitWidth, size_t CellDepth>
+    requires (ZBitWidth <= sizeof(size_t)*8 && CellDepth < 256)
+    void grid<T, CellSize, ZBitWidth, CellDepth>::update(T entity, const bounds& old_bounds, const bounds& new_bounds) {
+        // I tried a few ways to only update what has changed, but nothing I tested was faster than this
+        this->remove(entity, old_bounds);
+        this->insert(entity, new_bounds);
     }
 
-    template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
-    void grid<T, Scale, ZBitWidth, CellDepth>::traverse(const bounds& bounds, traversal_function<StorageT> auto callback) const {
-
-        this->iterBounds(bounds, [callback](int cell) {
+    template<class T, int CellSize, size_t ZBitWidth, size_t CellDepth>
+    requires (ZBitWidth <= sizeof(size_t)*8 && CellDepth < 256)
+    void grid<T, CellSize, ZBitWidth, CellDepth>::traverse(const bounds& bounds, traversal_function<T> auto callback) {
+        this->iter_bounds(bounds, [this, callback](int cell) {
             this->nodes[cell].traverse(callback);
         });
     }
 
-    template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
-    inline void grid<T, Scale, ZBitWidth, CellDepth>::iterBounds(const bounds& bounds, traversal_function<uint64_t> auto iter_func) {
-
-        int bounds_it_width{(bounds.w + Scale - 1)/Scale};
-        int bounds_it_height{(bounds.h + Scale - 1)/Scale};
-        int bounds_it_x{bounds.x/Scale};
-        int bounds_it_y{bounds.y/Scale};
-
-        for (int it_y{0}; it_y < bounds_it_height; it_y++) {
-            for (int it_x{0}; it_x < bounds_it_width; it_x++) {
-                iter_func(interleave(bounds_it_x + it_x, bounds_it_y + it_y));
+    template<class T, int CellSize, size_t ZBitWidth, size_t CellDepth>
+    requires (ZBitWidth <= sizeof(size_t)*8 && CellDepth < 256)
+    inline void grid<T, CellSize, ZBitWidth, CellDepth>::iter_bounds(const bounds& bounds, traversal_function<uint64_t> auto iter_func) {
+        lightgrid::bounds iter_bounds{
+            (bounds.x + CellSize - 1) / CellSize,
+            (bounds.y + CellSize - 1) / CellSize,
+            (bounds.w + CellSize - 1) / CellSize,
+            (bounds.h + CellSize - 1) / CellSize,
+        };
+        for (int it_y{0}; it_y <= iter_bounds.h; it_y++) {
+            for (int it_x{0}; it_x <= iter_bounds.w; it_x++) {
+                iter_func(z_order(iter_bounds.x + it_x, iter_bounds.y + it_y));
             }
         }
     }
 
-    template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
-    inline uint64_t grid<T, Scale, ZBitWidth, CellDepth>::interleave_with_zeros(uint32_t input) const {
+    template<class T, int CellSize, size_t ZBitWidth, size_t CellDepth>
+    requires (ZBitWidth <= sizeof(size_t)*8 && CellDepth < 256)
+    inline uint64_t grid<T, CellSize, ZBitWidth, CellDepth>::z_order(uint32_t x, uint32_t y) const {
+        return this->interleave(x, y) & grid<T, CellSize, ZBitWidth, CellDepth>::wrapping_bit_mask;
+    }
 
+    template<class T, int CellSize, size_t ZBitWidth, size_t CellDepth>
+    requires (ZBitWidth <= sizeof(size_t)*8 && CellDepth < 256)
+    inline uint64_t grid<T, CellSize, ZBitWidth, CellDepth>::interleave_with_zeros(uint32_t input) const {
         uint64_t res = input;
         res = (res | (res << 16)) & 0x0000ffff0000ffff;
         res = (res | (res << 8 )) & 0x00ff00ff00ff00ff;
@@ -307,18 +221,19 @@ namespace lightgrid {
     }
 
     // In the case that _pdep_u64 is unavailable, use a traditional algorithm for interleaving
-    template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
+    template<class T, int CellSize, size_t ZBitWidth, size_t CellDepth>
+    requires (ZBitWidth <= sizeof(size_t)*8 && CellDepth < 256)
     #if defined(__GNUC__) || defined(__llvm__)
         __attribute__ ((target ("default")))
     #endif
-    inline uint64_t grid<T, Scale, ZBitWidth, CellDepth>::interleave(uint32_t x, uint32_t y) const {
-        return interleave_with_zeros(x) | (interleave_with_zeros(y) << 1);
+    inline uint64_t grid<T, CellSize, ZBitWidth, CellDepth>::interleave(uint32_t x, uint32_t y) const {
+        return this->interleave_with_zeros(x) | (this->interleave_with_zeros(y) << 1);
     }
 
     #if defined(__BMI2__) && (defined(__GNUC__) || defined(__llvm__)) && defined(__x86_64__)
-        template<class T, size_t Scale, size_t ZBitWidth, size_t CellDepth>
+        template<class T, int CellSize, size_t ZBitWidth, size_t CellDepth>
         __attribute__ ((target ("bmi2")))
-        inline uint64_t grid<T, Scale, ZBitWidth, CellDepth>::interleave(uint32_t x, uint32_t y) const {
+        inline uint64_t grid<T, CellSize, ZBitWidth, CellDepth>::interleave(uint32_t x, uint32_t y) const {
             return _pdep_u64(y,0xaaaaaaaaaaaaaaaa) | _pdep_u64(x, 0x5555555555555555);
         }
     #endif

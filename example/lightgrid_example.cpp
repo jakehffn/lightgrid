@@ -8,36 +8,27 @@
 
 #include <lightgrid/grid.hpp>
 
-#define WINDOW_WIDTH 1920
-#define WINDOW_HEIGHT 1080
+#define WINDOW_WIDTH 900
+#define WINDOW_HEIGHT 900
 
-// There is a performace/memory trade-off when choosing the grid cell size.
-//      The best performance results from cell sizes near the size of the 
-//      smallest entities within the grid.
-// The following grid, with the cell sizes being the same as the entity sizes,
-//      containing 100,000 entities, takes ~500MB of memory running at ~30 fps
-// A grid with the same number of entities, but with cell sizes 10x the size
-//      of the entities takes ~250MB of memory running at ~7 fps.
-#define GRID_CELL_SIZE 3
-
-#define NUM_ENTITIES 100000
+#define NUM_ENTITIES 1000
 #define LAYOUT_PADDING 1 // Number of pixels of separation between entities
 
-#define MAX_ENTITY_WIDTH 3
-#define MIN_ENTITY_WIDTH 3
+#define MAX_ENTITY_WIDTH 16
+#define MIN_ENTITY_WIDTH 16
 #define MAX_ENTITY_HEIGHT (MAX_ENTITY_WIDTH)
 #define MIN_ENTITY_HEIGHT (MIN_ENTITY_WIDTH)
 
 // This collision simulation doesn't do anything fancy to deal with high-speed
 //      entities. For tiny entities, these speeds need to be fairly low to prevent
 //      entities from constantly flying through each other.
-#define MAX_ENTITY_VELOCITY 5.0f
-#define MIN_ENTITY_VELOCITY -5.0f
+#define MAX_ENTITY_VELOCITY 20.0f
+#define MIN_ENTITY_VELOCITY -20.0f
 
 // SDL seems to use a massive amount of memory when drawing many rectangles. 
 //      Still not sure if this is my issue, or SDL's issue; regardless, the memory 
 //      usage is measured separately without the rectangles being rendered. 
-//      I may convert to an OpenGL contect in the future.
+//      I may switch to OpenGL in the future.
 // Setting this to true will disable SDL drawing
 #define MEASURE_MEMORY false
 
@@ -48,7 +39,6 @@ SDL_Event event;
 bool quit{false};
 
 struct entity {
-
     lightgrid::bounds bounds;
 
     float velocity_x;
@@ -58,37 +48,12 @@ struct entity {
     float real_y;   //      sub-pixel precision
 
     SDL_Color color;
-
-    int grid_element_node; // When inserting an element into the grid, the
-    //      Internal node in which the element was inserted is returned. 
-    //      This value must be known when removing an element from the
-    //      grid. 
-
-    // It was considered for the grid to keep track of this 
-    //      itself, but having the user of this library store a single
-    //      integer along with the their own entity data seemed much more
-    //      reasonable than requiring the user to provide a hash along
-    //      with the type to be inserted, and then keeping a map to the 
-    //      element nodes interally. This may again be considered in the 
-    //      future though. 
 };
 
-// While the grid's performance when querying will not suffer by holding the 
-//      entities directly, there may be a performace penalty during insertion 
-//      and retrieval as a copy of the type will be stored in the grid, and 
-//      this will be copied.
-// It is slightly prefered to insert pointers or indicies into other lists
+// It is prefered to insert pointers or indicies into other lists
 //      than it is to store an instance of that type.
-lightgrid::grid<int> grid;
+lightgrid::grid<int, 20, 10> grid;
 std::vector<entity> entities;
-
-// A vector (or some other insertable type) is needed to retrieve the values
-//      within the queried bounds.
-// In a not-so-distant future version, a function such as iterQuery() will
-//      be implemented to avoid any costs associated with retrieval after 
-//      a query in cases where the values returned are all passed to some
-//      functor.
-std::vector<int> query;
 
 std::mt19937 gen_rand;
 
@@ -108,7 +73,6 @@ void drawRects();
 void pollEvents();
 
 lightgrid::bounds genBounds(int map_width, int map_height) {
-
     int w,h;
 
     if (MAX_ENTITY_WIDTH != MIN_ENTITY_WIDTH) {
@@ -139,7 +103,6 @@ lightgrid::bounds genBounds(int map_width, int map_height) {
 
 // Simple aabb collision detection
 bool isColliding(const entity& e1, const entity& e2) {
-
     float top_1 = e1.real_y;
     float bottom_1 = e1.real_y + e1.bounds.h;
     float left_1 = e1.real_x;
@@ -154,7 +117,6 @@ bool isColliding(const entity& e1, const entity& e2) {
 }
 
 void resolveCollisionX(entity& e1, entity& e2) {
-
     // All masses are assumed to be equal, so the resolution in either
     //      axis is as simple as setting the position of one entity
     //      to the edge of the other and swapping the velocities in that
@@ -184,7 +146,6 @@ void resolveCollisionX(entity& e1, entity& e2) {
 
 
 void resolveCollisionY(entity& e1, entity& e2) {
-
     float tmp;
 
     if (e1.real_y < e2.real_y) {
@@ -208,7 +169,6 @@ void resolveCollisionY(entity& e1, entity& e2) {
 }
 
 void resolveCollision(entity& e1, entity& e2) {
-
     // For any collision between two aabb's, a collision only needs 
     //      to be resolved in one axis. 
 
@@ -239,28 +199,14 @@ void resolveCollision(entity& e1, entity& e2) {
 }
 
 void resolveCollisions() {
-
     for (int it{0}; it < entities.size(); it++) {
-
         entity& entity{entities[it]};
-        
-        // The list being used for querying exists outside of this scope and
-        //      and is cleared as to avoid reallocation.
-        query.clear();
 
-        // The type of the results container must satisfy the lightgrid::insertable 
-        //      concept. After the query, the container will have had all the 
-        //      entities within the queried bounds inserted into it.
-        grid.query(entity.bounds, query);
-
-        // With the results in the "query" vector, it can be iterated over to find 
-        //      collisions among the other nearby entities.
-        for (auto& other_entity : query) {
-
+        grid.traverse(entity.bounds, [it, &entity](int other_entity) {
             if (it != other_entity && isColliding(entity, entities[other_entity])) {
                 resolveCollision(entity, entities[other_entity]);
             }
-        }
+        });
 
         if (entity.real_x <= 0) {
             entity.real_x = 0;
@@ -282,7 +228,6 @@ void resolveCollisions() {
 }
 
 void updatePositions(float delta_time) {
-
     lightgrid::bounds old_bounds;
 
     for (int it{0}; it < entities.size(); it++) {
@@ -300,12 +245,11 @@ void updatePositions(float delta_time) {
         //      element in the grid, along with the index of the element node,
         //      within the grid. This is the only overhead that must be 
         //      considered when implementing the grid.
-        grid.update(entity.grid_element_node, old_bounds, entity.bounds);
+        grid.update(it, old_bounds, entity.bounds);
     }
 }
 
 void createEntities(int num_entities) {
-
     // This function attempts to create the specified number of entities,
     //      centering them in the window. If specified number will not fit in
     //      the window, it will create as many entities as it can fit.
@@ -371,21 +315,13 @@ void createEntities(int num_entities) {
 }
 
 void prepareGrid() {
-    
-    grid.init(WINDOW_WIDTH, WINDOW_HEIGHT, GRID_CELL_SIZE);
-    grid.reserve(entities.size());
-    query.reserve(entities.size());
-
     for (int it{0}; it < entities.size(); it++) {
-        // When inserting into the grid, the index of the internal element node must be stored somewhere.
-        entities[it].grid_element_node= grid.insert(it, entities[it].bounds);
+        grid.insert(it, entities[it].bounds);
     }
 }
 
 void drawRects() {
-
     for (auto entity : entities) {
-
         SDL_SetRenderDrawColor(renderer, entity.color.r, entity.color.g, entity.color.b, 255);
         SDL_RenderFillRect(renderer, reinterpret_cast<SDL_Rect*>(&(entity.bounds)));
     }
@@ -393,14 +329,11 @@ void drawRects() {
 
 void pollEvents() {
     while (SDL_PollEvent(&event) == 1) {
-
         switch(event.type) {
-
             case SDL_QUIT:
                 quit = true;
                 break;
             case SDL_KEYDOWN:
-
                 switch(event.key.keysym.sym) {
                     case SDLK_ESCAPE: 
                         quit = true;
@@ -412,7 +345,6 @@ void pollEvents() {
 }
 
 int main(int argc, char **argv) {
-
     SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO);
     SDL_CreateWindowAndRenderer(WINDOW_WIDTH, WINDOW_HEIGHT, 0, &window, &renderer);
     
@@ -429,7 +361,6 @@ int main(int argc, char **argv) {
     uint64_t interval_time{0};
 
     while (!quit) {
-
         pollEvents();
 
         current_frame = SDL_GetTicks64();
