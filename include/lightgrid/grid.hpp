@@ -43,7 +43,6 @@ namespace lightgrid {
     template<class T, int CellSize, size_t ZBitWidth=16u, size_t CellDepth=16u>
     requires (ZBitWidth <= sizeof(size_t)*8 && CellDepth < 256)
     class grid {
-        struct overflow_entity;
     public:
         void clear();
         void insert(T entity, const bounds& bounds);
@@ -51,10 +50,9 @@ namespace lightgrid {
         void update(T entity, const bounds& old_bounds, const bounds& new_bounds);
         void traverse(const bounds& bounds, traversal_function<T> auto callback);
         
-        static constinit const uint64_t wrapping_bit_mask{(1 << ZBitWidth) - 1};
-        inline static std::vector<overflow_entity> global_overflow;
     private:
         // A mask for wrapping z-orders outside the bounds of the grid
+        static constinit const uint64_t wrapping_bit_mask{(1 << ZBitWidth) - 1};
 
         class node;
 
@@ -69,6 +67,8 @@ namespace lightgrid {
         inline uint64_t interleave(uint32_t x, uint32_t y) const;
 
         std::array<node, 1 << ZBitWidth> nodes;
+        // overflow for everything else.
+        inline static std::vector<overflow_entity> global_overflow;
 
         class node final {
             // The minimum count where the inner loop will 'break' instead of continuing to iterate
@@ -141,6 +141,11 @@ namespace lightgrid {
                     }
                 }
             }
+
+            void clear() {
+                this->size = 0;
+                this->overflow_count = 0;
+            }
         };
     };
 
@@ -148,8 +153,7 @@ namespace lightgrid {
     requires (ZBitWidth <= sizeof(size_t)*8 && CellDepth < 256)
     void grid<T, CellSize, ZBitWidth, CellDepth>::clear() {
         for (auto& node : this->nodes) {
-            node.size = 0;
-            node.overflow_count = 0;
+            node.clear();
         }
         grid<T, CellSize, ZBitWidth, CellDepth>::global_overflow.clear();
     }
