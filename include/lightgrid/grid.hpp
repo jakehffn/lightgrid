@@ -97,7 +97,7 @@ namespace lightgrid {
 
             void remove(T old_entity) {
                 // Swap the old entity with the last in the cell     
-                for (size_t curr{0}; curr < CellDepth; curr++) {
+                for (size_t curr{0}; curr < this->size; curr++) {
                     if (this->entities[curr] == old_entity) {
                         this->entities[curr] = this->entities[this->size-1];
                         this->size--;

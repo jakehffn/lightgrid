@@ -2,7 +2,7 @@
 
 **lightgrid is an header-only implementation of a grid data-structure for spacial lookups, useful for collision detection and render-culling, implemented using C++20 features.**
 
-This branch avoids the usage of a linked-list. Currently, the performance is comparable to the main branch, but is still slightly slower. For now, the benefits are that there is no need to initialize the grid, the interface is much simpler, and there is a traversal function.
+This branch avoids the usage of a linked-list. Currently, the performance is comparable to the main branch, but is still slightly slower. For now, the benefits are that there is no need to initialize the grid, the interface is much simpler, and there is a traversal function. Downside is, though, that this branch is not stable :(
 
 ## Installation
 
