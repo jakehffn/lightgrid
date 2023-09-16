@@ -61,6 +61,8 @@ namespace lightgrid {
         void cellQuery(int cell_node);
 
         grid<T>::cell_bounds getCellBounds(const bounds& bounds);
+        unsigned modulo(int value, unsigned m);
+        unsigned modulo2048(int value);
         void resetQuerySet();
 
         std::vector<T> elements;
@@ -117,7 +119,7 @@ namespace lightgrid {
 
         for (int yy{scaled.y_start}; yy <= scaled.y_end; yy++) {
             for (int xx{scaled.x_start}; xx <= scaled.x_end; xx++) {
-                this->cellInsert((yy%this->cell_column_size)*this->cell_row_size + (xx%this->cell_row_size), new_element_node);     
+                this->cellInsert(this->modulo(yy, this->cell_column_size)*this->cell_row_size + this->modulo(xx, this->cell_row_size), new_element_node);     
             }
         }
 
@@ -141,7 +143,7 @@ namespace lightgrid {
 
         for (int yy{scaled.y_start}; yy <= scaled.y_end; yy++) {
             for (int xx{scaled.x_start}; xx <= scaled.x_end; xx++) {
-                this->cellRemove((yy%this->cell_column_size)*this->cell_row_size + (xx%this->cell_row_size), element_node);     
+                this->cellRemove(this->modulo(yy, this->cell_column_size)*this->cell_row_size + this->modulo(xx, this->cell_row_size), element_node);     
             }
         }
 
@@ -159,7 +161,7 @@ namespace lightgrid {
 
         for (int yy{scaled_old.y_start}; yy <= scaled_old.y_end; yy++) {
             for (int xx{scaled_old.x_start}; xx <= scaled_old.x_end; xx++) {
-                this->cellRemove((yy%this->cell_column_size)*this->cell_row_size + (xx%this->cell_row_size), element_node);     
+                this->cellRemove(this->modulo(yy, this->cell_column_size)*this->cell_row_size + this->modulo(xx, this->cell_row_size), element_node);     
             }
         }
 
@@ -168,7 +170,7 @@ namespace lightgrid {
 
         for (int yy{scaled_new.y_start}; yy <= scaled_new.y_end; yy++) {
             for (int xx{scaled_new.x_start}; xx <= scaled_new.x_end; xx++) {
-                this->cellInsert((yy%this->cell_column_size)*this->cell_row_size + (xx%this->cell_row_size), element_node);     
+                this->cellInsert(this->modulo(yy, this->cell_column_size)*this->cell_row_size + this->modulo(xx, this->cell_row_size), element_node);     
             }
         }
     }
@@ -192,7 +194,7 @@ namespace lightgrid {
 
         for (int yy{scaled.y_start}; yy <= scaled.y_end; yy++) {
             for (int xx{scaled.x_start}; xx <= scaled.x_end; xx++) {
-                this->cellQuery((yy%this->cell_column_size)*this->cell_row_size + (xx%this->cell_row_size));     
+                this->cellQuery(this->modulo(yy, this->cell_column_size)*this->cell_row_size + this->modulo(xx, this->cell_row_size));     
             }
         }
 
@@ -318,6 +320,21 @@ namespace lightgrid {
         scaled.y_end = (bounds.y + bounds.h)/this->cell_size;
 
         return scaled;
+    }
+
+    // Returns a positive modulo
+    template<class T>
+    inline unsigned grid<T>::modulo(int value, unsigned m) {
+        int mod = value % (int)m;
+        if (mod < 0) {
+            mod += m;
+        }
+        return mod;
+    }
+
+    template<class T>
+    inline unsigned grid<T>::modulo2048(int value) {
+        return this->modulo(value, 2048);
     }
 
     template<class T>
