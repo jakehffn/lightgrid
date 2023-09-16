@@ -60,7 +60,7 @@ namespace lightgrid {
         void cellRemove(int cell_node, int element_node);
         void cellQuery(int cell_node);
 
-        grid<T>::cell_bounds clampCellBounds(const bounds& bounds);
+        grid<T>::cell_bounds getCellBounds(const bounds& bounds);
         void resetQuerySet();
 
         std::vector<T> elements;
@@ -113,11 +113,11 @@ namespace lightgrid {
 
         int new_element_node = this->elementInsert(element);
 
-        cell_bounds clamped{clampCellBounds(bounds)};
+        cell_bounds scaled{getCellBounds(bounds)};
 
-        for (int yy{clamped.y_start}; yy <= clamped.y_end; yy++) {
-            for (int xx{clamped.x_start}; xx <= clamped.x_end; xx++) {
-                this->cellInsert(yy*this->cell_row_size + xx, new_element_node);     
+        for (int yy{scaled.y_start}; yy <= scaled.y_end; yy++) {
+            for (int xx{scaled.x_start}; xx <= scaled.x_end; xx++) {
+                this->cellInsert((yy%this->cell_column_size)*this->cell_row_size + (xx%this->cell_row_size), new_element_node);     
             }
         }
 
@@ -137,11 +137,11 @@ namespace lightgrid {
 
         assert(this->cell_nodes.size() > 0 && "Remove attempted on uninitialized grid");
 
-        cell_bounds clamped{clampCellBounds(bounds)};
+        cell_bounds scaled{getCellBounds(bounds)};
 
-        for (int yy{clamped.y_start}; yy <= clamped.y_end; yy++) {
-            for (int xx{clamped.x_start}; xx <= clamped.x_end; xx++) {
-                this->cellRemove(yy*this->cell_row_size + xx, element_node);     
+        for (int yy{scaled.y_start}; yy <= scaled.y_end; yy++) {
+            for (int xx{scaled.x_start}; xx <= scaled.x_end; xx++) {
+                this->cellRemove((yy%this->cell_column_size)*this->cell_row_size + (xx%this->cell_row_size), element_node);     
             }
         }
 
@@ -155,20 +155,20 @@ namespace lightgrid {
         assert(this->cell_nodes.size() > 0 && "Update attempted on uninitialized grid");
 
         // Remove from old bounds
-        cell_bounds clamped_old{clampCellBounds(old_bounds)};
+        cell_bounds scaled_old{getCellBounds(old_bounds)};
 
-        for (int yy{clamped_old.y_start}; yy <= clamped_old.y_end; yy++) {
-            for (int xx{clamped_old.x_start}; xx <= clamped_old.x_end; xx++) {
-                this->cellRemove(yy*this->cell_row_size + xx, element_node);     
+        for (int yy{scaled_old.y_start}; yy <= scaled_old.y_end; yy++) {
+            for (int xx{scaled_old.x_start}; xx <= scaled_old.x_end; xx++) {
+                this->cellRemove((yy%this->cell_column_size)*this->cell_row_size + (xx%this->cell_row_size), element_node);     
             }
         }
 
         // Insert into new bounds
-        cell_bounds clamped_new{clampCellBounds(new_bounds)};
+        cell_bounds scaled_new{getCellBounds(new_bounds)};
 
-        for (int yy{clamped_new.y_start}; yy <= clamped_new.y_end; yy++) {
-            for (int xx{clamped_new.x_start}; xx <= clamped_new.x_end; xx++) {
-                this->cellInsert(yy*this->cell_row_size + xx, element_node);     
+        for (int yy{scaled_new.y_start}; yy <= scaled_new.y_end; yy++) {
+            for (int xx{scaled_new.x_start}; xx <= scaled_new.x_end; xx++) {
+                this->cellInsert((yy%this->cell_column_size)*this->cell_row_size + (xx%this->cell_row_size), element_node);     
             }
         }
     }
@@ -188,11 +188,11 @@ namespace lightgrid {
 
         assert(this->cell_nodes.size() > 0 && "Query attempted on uninitialized grid");
 
-        cell_bounds clamped{clampCellBounds(bounds)};
+        cell_bounds scaled{getCellBounds(bounds)};
 
-        for (int yy{clamped.y_start}; yy <= clamped.y_end; yy++) {
-            for (int xx{clamped.x_start}; xx <= clamped.x_end; xx++) {
-                this->cellQuery(yy*this->cell_row_size + xx);     
+        for (int yy{scaled.y_start}; yy <= scaled.y_end; yy++) {
+            for (int xx{scaled.x_start}; xx <= scaled.x_end; xx++) {
+                this->cellQuery((yy%this->cell_column_size)*this->cell_row_size + (xx%this->cell_row_size));     
             }
         }
 
@@ -308,20 +308,16 @@ namespace lightgrid {
     }
 
     template<class T>
-    inline grid<T>::cell_bounds grid<T>::clampCellBounds(const bounds& bounds) {
+    inline grid<T>::cell_bounds grid<T>::getCellBounds(const bounds& bounds) {
     
-        cell_bounds clamped;
+        cell_bounds scaled;
 
-        clamped.x_start = std::clamp(bounds.x/this->cell_size, 
-            0, this->cell_row_size-1);
-        clamped.y_start = std::clamp(bounds.y/this->cell_size, 
-            0, this->cell_column_size-1);
-        clamped.x_end = std::clamp((bounds.x + bounds.w)/this->cell_size,
-            0, this->cell_row_size-1);
-        clamped.y_end = std::clamp((bounds.y + bounds.h)/this->cell_size,
-            0, this->cell_column_size-1);
+        scaled.x_start = bounds.x/this->cell_size;
+        scaled.y_start = bounds.y/this->cell_size;
+        scaled.x_end = (bounds.x + bounds.w)/this->cell_size;
+        scaled.y_end = (bounds.y + bounds.h)/this->cell_size;
 
-        return clamped;
+        return scaled;
     }
 
     template<class T>
