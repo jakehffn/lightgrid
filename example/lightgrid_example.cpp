@@ -20,19 +20,19 @@
 //      of the entities takes ~250MB of memory running at ~7 fps.
 #define GRID_CELL_SIZE 3
 
-#define NUM_ENTITIES 100000
+#define NUM_ENTITIES 50000
 #define LAYOUT_PADDING 1 // Number of pixels of separation between entities
 
-#define MAX_ENTITY_WIDTH 3
-#define MIN_ENTITY_WIDTH 3
+#define MAX_ENTITY_WIDTH 5
+#define MIN_ENTITY_WIDTH 5
 #define MAX_ENTITY_HEIGHT (MAX_ENTITY_WIDTH)
 #define MIN_ENTITY_HEIGHT (MIN_ENTITY_WIDTH)
 
 // This collision simulation doesn't do anything fancy to deal with high-speed
 //      entities. For tiny entities, these speeds need to be fairly low to prevent
 //      entities from constantly flying through each other.
-#define MAX_ENTITY_VELOCITY 5.0f
-#define MIN_ENTITY_VELOCITY -5.0f
+#define MAX_ENTITY_VELOCITY 15.0f
+#define MIN_ENTITY_VELOCITY -15.0f
 
 // SDL seems to use a massive amount of memory when drawing many rectangles. 
 //      Still not sure if this is my issue, or SDL's issue; regardless, the memory 
