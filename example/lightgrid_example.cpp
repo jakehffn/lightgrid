@@ -79,7 +79,7 @@ struct entity {
 //      this will be copied.
 // It is slightly prefered to insert pointers or indicies into other lists
 //      than it is to store an instance of that type.
-lightgrid::grid<int> grid;
+lightgrid::grid<int, 10> grid;
 std::vector<entity> entities;
 
 // A vector (or some other insertable type) is needed to retrieve the values
@@ -372,7 +372,7 @@ void createEntities(int num_entities) {
 
 void prepareGrid() {
     
-    grid.init(WINDOW_WIDTH, WINDOW_HEIGHT, GRID_CELL_SIZE);
+    // grid.init(WINDOW_WIDTH, WINDOW_HEIGHT, GRID_CELL_SIZE);
     grid.reserve(entities.size());
     query.reserve(entities.size());
 
