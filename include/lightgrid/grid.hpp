@@ -5,22 +5,12 @@
 #include <array>
 #include <algorithm>
 #include <span>
-#include <type_traits>
 
 #if defined(__BMI2__) && (defined(__GNUC__) || defined(__llvm__)) && defined(__x86_64__)
     #include <immintrin.h>
 #endif
 
-#if defined(__GNUC__)
-    #define UNLIKELY(expr) (__builtin_expect((bool)(expr), 0))
-    #define LIKELY(expr) (__builtin_expect((bool)(expr), 1))
-#else
-    #define UNLIKELY(expr) ((bool)(expr))
-    #define LIKELY(expr) ((bool)(expr))
-#endif
-
 namespace lightgrid {
-
     template<typename C, typename T>
     concept insertable = requires(C& c, T t) {
         {c.insert(c.end(), std::forward<T>(t))};
@@ -71,17 +61,15 @@ namespace lightgrid {
             int next=-1; 
         };
 
-        int elementInsert(T element);
-        void elementRemove(int element_node);
+        int element_insert(T element);
+        void element_remove(int element_node);
 
-        void cellInsert(int cell_node, int element_node);
-        void cellRemove(int cell_node, int element_node);
-        void cellQuery(int cell_node);
+        void cell_insert(int cell_node, int element_node);
+        void cell_remove(int cell_node, int element_node);
+        void cell_query(int cell_node);
 
-        grid<T, CellSize, ZBitWidth>::cell_bounds getCellBounds(const bounds& bounds);
-        unsigned modulo(int value, unsigned m);
-        unsigned modulo2048(int value);
-        void resetQuerySet();
+        grid<T, CellSize, ZBitWidth>::cell_bounds get_cell_bounds(const bounds& bounds);
+        void reset_query_set();
 
         inline uint64_t z_order(uint32_t x, uint32_t y) const;
         inline uint64_t interleave_with_zeros(uint32_t input) const;
@@ -100,18 +88,6 @@ namespace lightgrid {
         int num_elements{0};
     };
 
-    // template<class T, int CellSize, size_t ZBitWidth>
-    // void grid<T, CellSize, ZBitWidth>::init(int width, int height, int cell_size) {
-
-    //     this->width = width;
-    //     this->height = height;
-    //     this->cell_size = cell_size;
-    //     this->cell_row_size = (width+cell_size-1)/cell_size;
-    //     this->cell_column_size = (height+cell_size-1)/cell_size;
-
-    //     this->clear();
-    // }
-
     template<class T, int CellSize, size_t ZBitWidth>
     requires (ZBitWidth <= sizeof(size_t)*8)
     void grid<T, CellSize, ZBitWidth>::clear() {
@@ -126,20 +102,19 @@ namespace lightgrid {
     int grid<T, CellSize, ZBitWidth>::insert(T element, const bounds& bounds) {
         assert(this->cell_nodes.size() > 0 && "Insert attempted on uninitialized grid");
 
-        int new_element_node = this->elementInsert(element);
+        int new_element_node = this->element_insert(element);
 
-        cell_bounds scaled{getCellBounds(bounds)};
+        cell_bounds scaled{get_cell_bounds(bounds)};
 
         for (int yy{scaled.y_start}; yy <= scaled.y_end; yy++) {
             for (int xx{scaled.x_start}; xx <= scaled.x_end; xx++) {
-                this->cellInsert(this->z_order(xx, yy), new_element_node);     
+                this->cell_insert(this->z_order(xx, yy), new_element_node);     
             }
         }
 
         this->num_elements++;
 
         if (this->query_set.size() < this->num_elements) {
-            
             this->last_query.resize(this->num_elements);
             this->query_set.resize(this->num_elements);
         }
@@ -150,42 +125,40 @@ namespace lightgrid {
     template<class T, int CellSize, size_t ZBitWidth>
     requires (ZBitWidth <= sizeof(size_t)*8)
     void grid<T, CellSize, ZBitWidth>::remove(int element_node, const bounds& bounds) {
-
         assert(this->cell_nodes.size() > 0 && "Remove attempted on uninitialized grid");
 
-        cell_bounds scaled{getCellBounds(bounds)};
+        cell_bounds scaled{get_cell_bounds(bounds)};
 
         for (int yy{scaled.y_start}; yy <= scaled.y_end; yy++) {
             for (int xx{scaled.x_start}; xx <= scaled.x_end; xx++) {
-                this->cellRemove(this->z_order(xx, yy), element_node);     
+                this->cell_remove(this->z_order(xx, yy), element_node);     
             }
         }
 
-        this->elementRemove(element_node);
+        this->element_remove(element_node);
         this->num_elements--;
     }
 
     template<class T, int CellSize, size_t ZBitWidth>
     requires (ZBitWidth <= sizeof(size_t)*8)
     void grid<T, CellSize, ZBitWidth>::update(int element_node, const bounds& old_bounds, const bounds& new_bounds) {
-
         assert(this->cell_nodes.size() > 0 && "Update attempted on uninitialized grid");
 
         // Remove from old bounds
-        cell_bounds scaled_old{getCellBounds(old_bounds)};
+        cell_bounds scaled_old{get_cell_bounds(old_bounds)};
 
         for (int yy{scaled_old.y_start}; yy <= scaled_old.y_end; yy++) {
             for (int xx{scaled_old.x_start}; xx <= scaled_old.x_end; xx++) {
-                this->cellRemove(this->z_order(xx, yy), element_node);     
+                this->cell_remove(this->z_order(xx, yy), element_node);     
             }
         }
 
         // Insert into new bounds
-        cell_bounds scaled_new{getCellBounds(new_bounds)};
+        cell_bounds scaled_new{get_cell_bounds(new_bounds)};
 
         for (int yy{scaled_new.y_start}; yy <= scaled_new.y_end; yy++) {
             for (int xx{scaled_new.x_start}; xx <= scaled_new.x_end; xx++) {
-                this->cellInsert(this->z_order(xx, yy), element_node);     
+                this->cell_insert(this->z_order(xx, yy), element_node);     
             }
         }
     }
@@ -193,7 +166,6 @@ namespace lightgrid {
     template<class T, int CellSize, size_t ZBitWidth>
     requires (ZBitWidth <= sizeof(size_t)*8)
     void grid<T, CellSize, ZBitWidth>::reserve(int num) {
-
         this->elements.reserve(num);
         this->cell_nodes.reserve(wrapping_bit_mask + num);
         this->element_nodes.reserve(num);
@@ -204,14 +176,13 @@ namespace lightgrid {
     template<typename R> 
     requires insertable<R, T>
     R& grid<T, CellSize, ZBitWidth>::query(const bounds& bounds, R& results) {
-
         assert(this->cell_nodes.size() > 0 && "Query attempted on uninitialized grid");
 
-        cell_bounds scaled{getCellBounds(bounds)};
+        cell_bounds scaled{get_cell_bounds(bounds)};
 
         for (int yy{scaled.y_start}; yy <= scaled.y_end; yy++) {
             for (int xx{scaled.x_start}; xx <= scaled.x_end; xx++) {
-                this->cellQuery(this->z_order(xx, yy));     
+                this->cell_query(this->z_order(xx, yy));     
             }
         }
 
@@ -223,15 +194,14 @@ namespace lightgrid {
             })
         );
 
-        this->resetQuerySet();
+        this->reset_query_set();
 
         return results;
     }
 
     template<class T, int CellSize, size_t ZBitWidth>
     requires (ZBitWidth <= sizeof(size_t)*8)
-    inline int grid<T, CellSize, ZBitWidth>::elementInsert(T element) {
-
+    inline int grid<T, CellSize, ZBitWidth>::element_insert(T element) {
         int new_element_node;
 
         if (this->free_element_nodes != -1) {
@@ -255,8 +225,7 @@ namespace lightgrid {
 
     template<class T, int CellSize, size_t ZBitWidth>
     requires (ZBitWidth <= sizeof(size_t)*8)
-    inline void grid<T, CellSize, ZBitWidth>::elementRemove(int element_node) {
-
+    inline void grid<T, CellSize, ZBitWidth>::element_remove(int element_node) {
         // Make the given element_node the head of the free_element_nodes list
         this->element_nodes[element_node].next = this->free_element_nodes;
         this->free_element_nodes = element_node;
@@ -264,8 +233,7 @@ namespace lightgrid {
 
     template<class T, int CellSize, size_t ZBitWidth>
     requires (ZBitWidth <= sizeof(size_t)*8)
-    inline void grid<T, CellSize, ZBitWidth>::cellInsert(int cell_node, int element_node) {
-
+    inline void grid<T, CellSize, ZBitWidth>::cell_insert(int cell_node, int element_node) {
         if (this->free_cell_nodes != -1) {
 
             // Use element of free node as scratchpad for next free node
@@ -280,7 +248,6 @@ namespace lightgrid {
             this->cell_nodes[this->cell_nodes[cell_node].next].element = element_node;
 
         } else {
-
             // Create new cell node and add reference to index into element_nodes list
             this->cell_nodes.emplace_back(element_node, this->cell_nodes[cell_node].next);
             this->cell_nodes[cell_node].next = this->cell_nodes.size() - 1;
@@ -289,8 +256,7 @@ namespace lightgrid {
 
     template<class T, int CellSize, size_t ZBitWidth>
     requires (ZBitWidth <= sizeof(size_t)*8)
-    inline void grid<T, CellSize, ZBitWidth>::cellRemove(int cell_node, int element_node) {
-
+    inline void grid<T, CellSize, ZBitWidth>::cell_remove(int cell_node, int element_node) {
         int previous_node{cell_node};
         int current_node{this->cell_nodes[cell_node].next};
 
@@ -309,8 +275,7 @@ namespace lightgrid {
 
     template<class T, int CellSize, size_t ZBitWidth>
     requires (ZBitWidth <= sizeof(size_t)*8)
-    inline void grid<T, CellSize, ZBitWidth>::cellQuery(int cell_node) {
-
+    inline void grid<T, CellSize, ZBitWidth>::cell_query(int cell_node) {
         int current_node{this->cell_nodes[cell_node].next};
 
         while (current_node != -1) {
@@ -333,8 +298,7 @@ namespace lightgrid {
 
     template<class T, int CellSize, size_t ZBitWidth>
     requires (ZBitWidth <= sizeof(size_t)*8)
-    inline grid<T, CellSize, ZBitWidth>::cell_bounds grid<T, CellSize, ZBitWidth>::getCellBounds(const bounds& bounds) {
-    
+    inline grid<T, CellSize, ZBitWidth>::cell_bounds grid<T, CellSize, ZBitWidth>::get_cell_bounds(const bounds& bounds) {
         cell_bounds scaled;
 
         scaled.x_start = bounds.x/CellSize;
@@ -345,27 +309,9 @@ namespace lightgrid {
         return scaled;
     }
 
-    // Returns a positive modulo
     template<class T, int CellSize, size_t ZBitWidth>
     requires (ZBitWidth <= sizeof(size_t)*8)
-    inline unsigned grid<T, CellSize, ZBitWidth>::modulo(int value, unsigned m) {
-        int mod = value % (int)m;
-        if (mod < 0) {
-            mod += m;
-        }
-        return mod;
-    }
-
-    template<class T, int CellSize, size_t ZBitWidth>
-    requires (ZBitWidth <= sizeof(size_t)*8)
-    inline unsigned grid<T, CellSize, ZBitWidth>::modulo2048(int value) {
-        return this->modulo(value, 2048);
-    }
-
-    template<class T, int CellSize, size_t ZBitWidth>
-    requires (ZBitWidth <= sizeof(size_t)*8)
-    inline void grid<T, CellSize, ZBitWidth>::resetQuerySet() {
-
+    inline void grid<T, CellSize, ZBitWidth>::reset_query_set() {
         for (int i{0}; i < this->query_size; i++) {
             this->query_set[this->last_query[i]] = false;
         }
