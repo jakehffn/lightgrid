@@ -99,18 +99,6 @@ cmake -DCMAKE_BUILD_TYPE=Release ..
 cmake --build . --target lightgrid_example
 ```
 
-### Benchmarks
-
-Some preliminary benchmarks can be seen [here](./test/benchmark/README.md). The desired benchmarks have not been created yet, but in the future, feel free contribute benchmarks for your machine.
-
-The benchmark *(as unhelpful as it is at the moment)* can be built with the following commands:
-
-```console
-cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
-cmake --build . --target lightgrid_benchmark
-```
-
 ### Tests
 
 There are currently no tests.
