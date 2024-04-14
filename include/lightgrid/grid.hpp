@@ -258,7 +258,7 @@ namespace lightgrid {
 
         std::span query_span{last_query.begin(), this->query_size};
 
-        for (auto element : this->query_span) {
+        for (auto element : query_span) {
             VisitFunc(this->elements[this->element_nodes[element].element], user_data);
         }
 
@@ -278,7 +278,7 @@ namespace lightgrid {
         
         std::span query_span{last_query.begin(), this->query_size};
 
-        for (auto element : this->query_span) {
+        for (auto element : query_span) {
             VisitFunc(this->elements[this->element_nodes[element].element], user_data);
         }
 
@@ -300,7 +300,7 @@ namespace lightgrid {
 
         std::span query_span{last_query.begin(), this->query_size};
 
-        for (auto element : this->query_span) {
+        for (auto element : query_span) {
             VisitFunc(this->elements[this->element_nodes[element].element], user_data);
         }
 
@@ -319,7 +319,7 @@ namespace lightgrid {
 
         std::span query_span{last_query.begin(), this->query_size};
 
-        for (auto element : this->query_span) {
+        for (auto element : query_span) {
             VisitFunc(this->elements[this->element_nodes[element].element], user_data);
         }
 
