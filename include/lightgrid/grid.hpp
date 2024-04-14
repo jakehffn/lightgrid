@@ -256,7 +256,9 @@ namespace lightgrid {
             }
         }
 
-        for (auto element : this->last_query) {
+        std::span query_span{last_query.begin(), this->query_size};
+
+        for (auto element : this->query_span) {
             VisitFunc(this->elements[this->element_nodes[element].element], user_data);
         }
 
@@ -273,8 +275,10 @@ namespace lightgrid {
         const int scaled_y = y / CellSize;
 
         this->cell_query(this->z_order(scaled_x, scaled_y));     
+        
+        std::span query_span{last_query.begin(), this->query_size};
 
-        for (auto element : this->last_query) {
+        for (auto element : this->query_span) {
             VisitFunc(this->elements[this->element_nodes[element].element], user_data);
         }
 
@@ -294,7 +298,9 @@ namespace lightgrid {
             }
         }
 
-        for (auto element : this->last_query) {
+        std::span query_span{last_query.begin(), this->query_size};
+
+        for (auto element : this->query_span) {
             VisitFunc(this->elements[this->element_nodes[element].element], user_data);
         }
 
@@ -311,7 +317,9 @@ namespace lightgrid {
 
         this->cell_query(this->z_order(scaled_x, scaled_y));     
 
-        for (auto element : this->last_query) {
+        std::span query_span{last_query.begin(), this->query_size};
+
+        for (auto element : this->query_span) {
             VisitFunc(this->elements[this->element_nodes[element].element], user_data);
         }
 
