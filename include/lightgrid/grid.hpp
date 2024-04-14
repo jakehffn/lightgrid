@@ -41,6 +41,9 @@ namespace lightgrid {
         template<typename R> 
         requires insertable<R, T>
         R& query(const bounds& bounds, R& results);
+        template<typename R> 
+        requires insertable<R, T>
+        R& query(int x, int y, R& results);
         
     private:
         // A mask for wrapping z-orders outside the bounds of the grid
@@ -185,6 +188,31 @@ namespace lightgrid {
                 this->cell_query(this->z_order(xx, yy));     
             }
         }
+
+        std::span query_span{last_query.begin(), this->query_size};
+        
+        std::transform(query_span.begin(), query_span.end(), std::inserter(results, results.end()), 
+            ([this](const auto& element) {
+                return this->elements[this->element_nodes[element].element];
+            })
+        );
+
+        this->reset_query_set();
+
+        return results;
+    }
+
+    template<class T, int CellSize, size_t ZBitWidth>
+    requires (ZBitWidth <= sizeof(size_t)*8)
+    template<typename R> 
+    requires insertable<R, T>
+    R& grid<T, CellSize, ZBitWidth>::query(int x, int y, R& results) {
+        assert(this->cell_nodes.size() > 0 && "Query attempted on uninitialized grid");
+
+        const int scaled_x = x / CellSize;
+        const int scaled_y = y / CellSize;
+
+        this->cell_query(this->z_order(scaled_x, scaled_y));     
 
         std::span query_span{last_query.begin(), this->query_size};
         
