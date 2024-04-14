@@ -31,6 +31,8 @@ namespace lightgrid {
     requires (ZBitWidth <= sizeof(size_t)*8)
     class grid {
     public:
+        grid();
+
         void clear();
 
         int insert(T element, const bounds& bounds);
@@ -44,6 +46,13 @@ namespace lightgrid {
         template<typename R> 
         requires insertable<R, T>
         R& query(int x, int y, R& results);
+
+        template<void VisitFunc(T, void*)>      
+        void visit(const bounds& bounds, void* user_data);
+        template<void VisitFunc(T, void*)>      
+        void visit(int x, int y, void* user_data);
+        void visit(const bounds& bounds, void(*VisitFunc)(T, void*), void* user_data);
+        void visit(int x, int y, void(*VisitFunc)(T, void*), void* user_data);
         
     private:
         // A mask for wrapping z-orders outside the bounds of the grid
@@ -90,6 +99,12 @@ namespace lightgrid {
         int free_cell_nodes{-1}; 
         int num_elements{0};
     };
+
+    template<class T, int CellSize, size_t ZBitWidth>
+    requires (ZBitWidth <= sizeof(size_t)*8)
+    grid<T, CellSize, ZBitWidth>::grid() {
+        this->clear();
+    }
 
     template<class T, int CellSize, size_t ZBitWidth>
     requires (ZBitWidth <= sizeof(size_t)*8)
@@ -225,6 +240,82 @@ namespace lightgrid {
         this->reset_query_set();
 
         return results;
+    }
+
+    template<class T, int CellSize, size_t ZBitWidth>
+    requires (ZBitWidth <= sizeof(size_t)*8)
+    template<void VisitFunc(T, void*)>  
+    void grid<T, CellSize, ZBitWidth>::visit(const bounds& bounds, void* user_data) {
+        assert(this->cell_nodes.size() > 0 && "Visit attempted on uninitialized grid");
+
+        cell_bounds scaled{get_cell_bounds(bounds)};
+
+        for (int yy{scaled.y_start}; yy <= scaled.y_end; yy++) {
+            for (int xx{scaled.x_start}; xx <= scaled.x_end; xx++) {
+                this->cell_query(this->z_order(xx, yy));     
+            }
+        }
+
+        for (auto element : this->last_query) {
+            VisitFunc(this->elements[this->element_nodes[element].element], user_data);
+        }
+
+        this->reset_query_set();
+    }
+
+    template<class T, int CellSize, size_t ZBitWidth>
+    requires (ZBitWidth <= sizeof(size_t)*8)
+    template<void VisitFunc(T, void*)>  
+    void grid<T, CellSize, ZBitWidth>::visit(int x, int y, void* user_data) {
+        assert(this->cell_nodes.size() > 0 && "Visit attempted on uninitialized grid");
+
+        const int scaled_x = x / CellSize;
+        const int scaled_y = y / CellSize;
+
+        this->cell_query(this->z_order(scaled_x, scaled_y));     
+
+        for (auto element : this->last_query) {
+            VisitFunc(this->elements[this->element_nodes[element].element], user_data);
+        }
+
+        this->reset_query_set();
+    }
+
+    template<class T, int CellSize, size_t ZBitWidth>
+    requires (ZBitWidth <= sizeof(size_t)*8)
+    void grid<T, CellSize, ZBitWidth>::visit(const bounds& bounds, void(*VisitFunc)(T, void*), void* user_data) {
+        assert(this->cell_nodes.size() > 0 && "Visit attempted on uninitialized grid");
+
+        cell_bounds scaled{get_cell_bounds(bounds)};
+
+        for (int yy{scaled.y_start}; yy <= scaled.y_end; yy++) {
+            for (int xx{scaled.x_start}; xx <= scaled.x_end; xx++) {
+                this->cell_query(this->z_order(xx, yy));     
+            }
+        }
+
+        for (auto element : this->last_query) {
+            VisitFunc(this->elements[this->element_nodes[element].element], user_data);
+        }
+
+        this->reset_query_set();
+    }
+
+    template<class T, int CellSize, size_t ZBitWidth>
+    requires (ZBitWidth <= sizeof(size_t)*8)
+    void grid<T, CellSize, ZBitWidth>::visit(int x, int y, void(*VisitFunc)(T, void*), void* user_data) {
+        assert(this->cell_nodes.size() > 0 && "Visit attempted on uninitialized grid");
+
+        const int scaled_x = x / CellSize;
+        const int scaled_y = y / CellSize;
+
+        this->cell_query(this->z_order(scaled_x, scaled_y));     
+
+        for (auto element : this->last_query) {
+            VisitFunc(this->elements[this->element_nodes[element].element], user_data);
+        }
+
+        this->reset_query_set();
     }
 
     template<class T, int CellSize, size_t ZBitWidth>
