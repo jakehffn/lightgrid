@@ -11,14 +11,7 @@
 #define WINDOW_WIDTH 1920
 #define WINDOW_HEIGHT 1080
 
-// There is a performace/memory trade-off when choosing the grid cell size.
-//      The best performance results from cell sizes near the size of the 
-//      smallest entities within the grid.
-// The following grid, with the cell sizes being the same as the entity sizes,
-//      containing 100,000 entities, takes ~500MB of memory running at ~30 fps
-// A grid with the same number of entities, but with cell sizes 10x the size
-//      of the entities takes ~250MB of memory running at ~7 fps.
-#define GRID_CELL_SIZE 3
+#define GRID_CELL_SIZE 10
 
 #define NUM_ENTITIES 50000
 #define LAYOUT_PADDING 1 // Number of pixels of separation between entities
