@@ -464,18 +464,20 @@ namespace lightgrid {
         return res;
     }
 
-    // In the case that _pdep_u64 is unavailable, use a traditional algorithm for interleaving
-    template<class T, int CellSize, size_t ZBitWidth>
-    requires (ZBitWidth <= sizeof(size_t)*8)
-    #if defined(__GNUC__) || defined(__llvm__)
-        __attribute__ ((target ("default")))
-    #endif
-    inline uint64_t grid<T, CellSize, ZBitWidth>::interleave(uint32_t x, uint32_t y) const {
-        return this->interleave_with_zeros(x) | (this->interleave_with_zeros(y) << 1);
-    }
+    #define PDEP_AVAILABLE (defined(__BMI2__) && (defined(__GNUC__) || defined(__llvm__)) && defined(__x86_64__))
 
-    #if defined(__BMI2__) && (defined(__GNUC__) || defined(__llvm__)) && defined(__x86_64__)
+    // In the case that _pdep_u64 is unavailable, use a traditional algorithm for interleaving
+    #if !PDEP_AVAILABLE
         template<class T, int CellSize, size_t ZBitWidth>
+        requires (ZBitWidth <= sizeof(size_t)*8)
+        inline uint64_t grid<T, CellSize, ZBitWidth>::interleave(uint32_t x, uint32_t y) const {
+            return this->interleave_with_zeros(x) | (this->interleave_with_zeros(y) << 1);
+        }
+    #endif
+
+    #if PDEP_AVAILABLE
+        template<class T, int CellSize, size_t ZBitWidth>
+        requires (ZBitWidth <= sizeof(size_t)*8)
         __attribute__ ((target ("bmi2")))
         inline uint64_t grid<T, CellSize, ZBitWidth>::interleave(uint32_t x, uint32_t y) const {
             return _pdep_u64(y,0xaaaaaaaaaaaaaaaa) | _pdep_u64(x, 0x5555555555555555);
