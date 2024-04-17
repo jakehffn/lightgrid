@@ -384,14 +384,18 @@ namespace lightgrid {
     template<class T, int CellSize, size_t ZBitWidth>
     requires (ZBitWidth <= sizeof(size_t)*8)
     inline void grid<T, CellSize, ZBitWidth>::cell_remove(int cell_node, int element_node) {
-        int previous_node{cell_node};
-        int current_node{this->cell_nodes[cell_node].next};
+        int previous_node{-1};
+        int current_node{cell_node};
 
         // Find the element_node in the cell_node's list
-        while (this->cell_nodes[current_node].element != element_node) {
+        do {
+            if (current_node == -1 /** || this->cell_nodes[current_node].element == -1/***/) {
+                return;
+            }
             previous_node = current_node;
             current_node = this->cell_nodes[current_node].next;
         }
+        while (this->cell_nodes[current_node].element != element_node);
 
         // Remove the cell_node containing element_node
         this->cell_nodes[previous_node].next = this->cell_nodes[current_node].next;
@@ -408,16 +412,21 @@ namespace lightgrid {
         while (current_node != -1) {
             assert(current_node < this->cell_nodes.size() && "current_node out of bounds");
 
-            int current_element{this->cell_nodes[current_node].element};
+            const int current_element{this->cell_nodes[current_node].element};
 
             // Only add to the current query if it has not already been added
-            if (!this->query_set[current_element]) {
+            const int condition{static_cast<int>(!this->query_set[current_element])};
+            this->last_query[this->query_size] = current_element;
+            this->query_size += condition;
+            this->query_set[current_element] = true;
+            // The above is a branchless version of the following:
+            // if (!this->query_set[current_element]) { 
 
-                this->last_query[this->query_size] = current_element;
-                this->query_size++;
+            //     this->last_query[this->query_size] = current_element;
+            //     this->query_size++;
 
-                this->query_set[current_element] = true;
-            }
+            //     this->query_set[current_element] = true;
+            // }
 
             current_node = this->cell_nodes[current_node].next;
         }
