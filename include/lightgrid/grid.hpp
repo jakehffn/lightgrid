@@ -89,7 +89,7 @@ namespace lightgrid {
 
         std::vector<T> elements;
         std::vector<node> element_nodes;
-        std::vector<node> cell_nodes{std::vector<node>(wrapping_bit_mask)}; // The first cells in this list will never change and will be accessed directly, acting as the 2D list of cells
+        std::vector<node> cell_nodes{std::vector<node>(wrapping_bit_mask + 1)}; // The first cells in this list will never change and will be accessed directly, acting as the 2D list of cells
 
         std::vector<int> last_query;
         std::vector<bool> query_set;
@@ -112,7 +112,7 @@ namespace lightgrid {
         this->elements.clear();
         this->element_nodes.clear();
         this->cell_nodes.clear();
-        this->cell_nodes.resize(wrapping_bit_mask);
+        this->cell_nodes.resize(wrapping_bit_mask + 1);
     }
 
     template<class T, int CellSize, size_t ZBitWidth>
