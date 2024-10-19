@@ -20,6 +20,10 @@ namespace lightgrid {
         int x,y,w,h;
     };
 
+    struct cell_bounds {
+        int x_start, x_end, y_start, y_end;
+    };
+
     /**
     * @brief Data-structure for spatial lookup.
     * Divides 2D coordinates into cells, allowing for insertion and lookup for 
@@ -31,9 +35,6 @@ namespace lightgrid {
     requires (ZBitWidth <= sizeof(size_t)*8)
     class grid {
     public:
-        struct cell_bounds {
-            int x_start, x_end, y_start, y_end;
-        };
 
         grid();
 
@@ -68,7 +69,7 @@ namespace lightgrid {
         void visit(const cell_bounds& bounds, void(*VisitFunc)(T, void*), void* user_data);
         void visit(int x, int y, void(*VisitFunc)(T, void*), void* user_data);
         
-        grid<T, CellSize, ZBitWidth>::cell_bounds get_cell_bounds(const bounds& bounds);
+        cell_bounds get_cell_bounds(const bounds& bounds);
 
     private:
         // A mask for wrapping z-orders outside the bounds of the grid
@@ -482,7 +483,7 @@ namespace lightgrid {
 
     template<class T, int CellSize, size_t ZBitWidth>
     requires (ZBitWidth <= sizeof(size_t)*8)
-    inline grid<T, CellSize, ZBitWidth>::cell_bounds grid<T, CellSize, ZBitWidth>::get_cell_bounds(const bounds& bounds) {
+    inline cell_bounds grid<T, CellSize, ZBitWidth>::get_cell_bounds(const bounds& bounds) {
         cell_bounds scaled;
 
         scaled.x_start = bounds.x/CellSize;
