@@ -11,7 +11,7 @@
 #define WINDOW_WIDTH 900
 #define WINDOW_HEIGHT 900
 
-#define NUM_ENTITIES 1000
+#define NUM_ENTITIES 10000
 #define LAYOUT_PADDING 1 // Number of pixels of separation between entities
 
 #define MAX_ENTITY_WIDTH 16
@@ -304,7 +304,7 @@ void createEntities(int num_entities) {
             velocity_y, // velocity
             curr_x,
             curr_y,
-            (SDL_Color) {
+            SDL_Color {
                 (uint8_t)(lowest_color + (gen_rand()%(256 - lowest_color))), 
                 (uint8_t)(lowest_color + (gen_rand()%(256 - lowest_color))), 
                 (uint8_t)(lowest_color + (gen_rand()%(256 - lowest_color))), 
