@@ -31,36 +31,48 @@ namespace lightgrid {
     requires (ZBitWidth <= sizeof(size_t)*8)
     class grid {
     public:
+        struct cell_bounds {
+            int x_start, x_end, y_start, y_end;
+        };
+
         grid();
 
-        void clear();
-
-        int insert(T element, const bounds& bounds);
-        void remove(int element_node, const bounds& bounds);
-        void update(int element_node, const bounds& old_bounds, const bounds& new_bounds);
         void reserve(int num);
+        void clear();
+        
+        int insert(T element, const bounds& bounds);
+        int insert(T element, const cell_bounds& bounds);
+        void remove(int element_node, const bounds& bounds);
+        void remove(int element_node, const cell_bounds& bounds);
+        void update(int element_node, const bounds& old_bounds, const bounds& new_bounds);
+        void update(int element_node, const cell_bounds& old_bounds, const cell_bounds& new_bounds);
 
         template<typename R> 
         requires insertable<R, T>
         R& query(const bounds& bounds, R& results);
         template<typename R> 
         requires insertable<R, T>
+        R& query(const cell_bounds& bounds, R& results);
+        template<typename R> 
+        requires insertable<R, T>
+        // Queries world coordinates, not cell indices
         R& query(int x, int y, R& results);
 
         template<void VisitFunc(T, void*)>      
         void visit(const bounds& bounds, void* user_data);
         template<void VisitFunc(T, void*)>      
+        void visit(const cell_bounds& bounds, void* user_data);
+        template<void VisitFunc(T, void*)>      
         void visit(int x, int y, void* user_data);
         void visit(const bounds& bounds, void(*VisitFunc)(T, void*), void* user_data);
+        void visit(const cell_bounds& bounds, void(*VisitFunc)(T, void*), void* user_data);
         void visit(int x, int y, void(*VisitFunc)(T, void*), void* user_data);
         
+        grid<T, CellSize, ZBitWidth>::cell_bounds get_cell_bounds(const bounds& bounds);
+
     private:
         // A mask for wrapping z-orders outside the bounds of the grid
         static constinit const uint64_t wrapping_bit_mask{(1 << ZBitWidth) - 1};
-
-        struct cell_bounds {
-            int x_start, x_end, y_start, y_end;
-        };
 
         struct node {
             node() {};
@@ -80,7 +92,6 @@ namespace lightgrid {
         void cell_remove(int cell_node, int element_node);
         void cell_query(int cell_node);
 
-        grid<T, CellSize, ZBitWidth>::cell_bounds get_cell_bounds(const bounds& bounds);
         void reset_query_set();
 
         inline uint64_t z_order(uint32_t x, uint32_t y) const;
@@ -119,13 +130,18 @@ namespace lightgrid {
     requires (ZBitWidth <= sizeof(size_t)*8)
     int grid<T, CellSize, ZBitWidth>::insert(T element, const bounds& bounds) {
         assert(this->cell_nodes.size() > 0 && "Insert attempted on uninitialized grid");
+        return this->insert(element, this->get_cell_bounds(bounds));
+    }
+
+    template<class T, int CellSize, size_t ZBitWidth>
+    requires (ZBitWidth <= sizeof(size_t)*8)
+    int grid<T, CellSize, ZBitWidth>::insert(T element, const cell_bounds& bounds) {
+        assert(this->cell_nodes.size() > 0 && "Insert attempted on uninitialized grid");
 
         int new_element_node = this->element_insert(element);
 
-        cell_bounds scaled{get_cell_bounds(bounds)};
-
-        for (int yy{scaled.y_start}; yy <= scaled.y_end; yy++) {
-            for (int xx{scaled.x_start}; xx <= scaled.x_end; xx++) {
+        for (int yy{bounds.y_start}; yy <= bounds.y_end; yy++) {
+            for (int xx{bounds.x_start}; xx <= bounds.x_end; xx++) {
                 this->cell_insert(this->z_order(xx, yy), new_element_node);     
             }
         }
@@ -144,11 +160,16 @@ namespace lightgrid {
     requires (ZBitWidth <= sizeof(size_t)*8)
     void grid<T, CellSize, ZBitWidth>::remove(int element_node, const bounds& bounds) {
         assert(this->cell_nodes.size() > 0 && "Remove attempted on uninitialized grid");
+        this->remove(element_node, this->get_cell_bounds(bounds));
+    }
 
-        cell_bounds scaled{get_cell_bounds(bounds)};
+    template<class T, int CellSize, size_t ZBitWidth>
+    requires (ZBitWidth <= sizeof(size_t)*8)
+    void grid<T, CellSize, ZBitWidth>::remove(int element_node, const cell_bounds& bounds) {
+        assert(this->cell_nodes.size() > 0 && "Remove attempted on uninitialized grid");
 
-        for (int yy{scaled.y_start}; yy <= scaled.y_end; yy++) {
-            for (int xx{scaled.x_start}; xx <= scaled.x_end; xx++) {
+        for (int yy{bounds.y_start}; yy <= bounds.y_end; yy++) {
+            for (int xx{bounds.x_start}; xx <= bounds.x_end; xx++) {
                 this->cell_remove(this->z_order(xx, yy), element_node);     
             }
         }
@@ -161,21 +182,29 @@ namespace lightgrid {
     requires (ZBitWidth <= sizeof(size_t)*8)
     void grid<T, CellSize, ZBitWidth>::update(int element_node, const bounds& old_bounds, const bounds& new_bounds) {
         assert(this->cell_nodes.size() > 0 && "Update attempted on uninitialized grid");
+        this->update(element_node, this->get_cell_bounds(old_bounds), this->get_cell_bounds(new_bounds));
+    }
+
+    template<class T, int CellSize, size_t ZBitWidth>
+    requires (ZBitWidth <= sizeof(size_t)*8)
+    void grid<T, CellSize, ZBitWidth>::update(int element_node, const cell_bounds& old_bounds, const cell_bounds& new_bounds) {
+        assert(this->cell_nodes.size() > 0 && "Update attempted on uninitialized grid");
+
+        // It may seem reasonable to look for the intersection of the bounds to avoid removing and inserting from the same cells,
+        //      but if the cells are near or slightly larger than the average object size, then the average intersection of bounds
+        //      will either be 1 or 2 cells. Cases where the bounds don't change are easy to detect, but can be handled by the callee
+        //      After testing, the difference between finding the intersection and not was negligible.
 
         // Remove from old bounds
-        cell_bounds scaled_old{get_cell_bounds(old_bounds)};
-
-        for (int yy{scaled_old.y_start}; yy <= scaled_old.y_end; yy++) {
-            for (int xx{scaled_old.x_start}; xx <= scaled_old.x_end; xx++) {
+        for (int yy{old_bounds.y_start}; yy <= old_bounds.y_end; yy++) {
+            for (int xx{old_bounds.x_start}; xx <= old_bounds.x_end; xx++) {
                 this->cell_remove(this->z_order(xx, yy), element_node);     
             }
         }
 
         // Insert into new bounds
-        cell_bounds scaled_new{get_cell_bounds(new_bounds)};
-
-        for (int yy{scaled_new.y_start}; yy <= scaled_new.y_end; yy++) {
-            for (int xx{scaled_new.x_start}; xx <= scaled_new.x_end; xx++) {
+        for (int yy{new_bounds.y_start}; yy <= new_bounds.y_end; yy++) {
+            for (int xx{new_bounds.x_start}; xx <= new_bounds.x_end; xx++) {
                 this->cell_insert(this->z_order(xx, yy), element_node);     
             }
         }
@@ -189,17 +218,25 @@ namespace lightgrid {
         this->element_nodes.reserve(num);
     }
 
+
     template<class T, int CellSize, size_t ZBitWidth>
     requires (ZBitWidth <= sizeof(size_t)*8)
     template<typename R> 
     requires insertable<R, T>
     R& grid<T, CellSize, ZBitWidth>::query(const bounds& bounds, R& results) {
         assert(this->cell_nodes.size() > 0 && "Query attempted on uninitialized grid");
+        return this->query(this->get_cell_bounds(bounds), results);
+    }
 
-        cell_bounds scaled{get_cell_bounds(bounds)};
+    template<class T, int CellSize, size_t ZBitWidth>
+    requires (ZBitWidth <= sizeof(size_t)*8)
+    template<typename R> 
+    requires insertable<R, T>
+    R& grid<T, CellSize, ZBitWidth>::query(const cell_bounds& bounds, R& results) {
+        assert(this->cell_nodes.size() > 0 && "Query attempted on uninitialized grid");
 
-        for (int yy{scaled.y_start}; yy <= scaled.y_end; yy++) {
-            for (int xx{scaled.x_start}; xx <= scaled.x_end; xx++) {
+        for (int yy{bounds.y_start}; yy <= bounds.y_end; yy++) {
+            for (int xx{bounds.x_start}; xx <= bounds.x_end; xx++) {
                 this->cell_query(this->z_order(xx, yy));     
             }
         }
@@ -247,11 +284,17 @@ namespace lightgrid {
     template<void VisitFunc(T, void*)>  
     void grid<T, CellSize, ZBitWidth>::visit(const bounds& bounds, void* user_data) {
         assert(this->cell_nodes.size() > 0 && "Visit attempted on uninitialized grid");
+        this->visit<VisitFunc>(this->get_cell_bounds(bounds), user_data);
+    }
 
-        cell_bounds scaled{get_cell_bounds(bounds)};
+    template<class T, int CellSize, size_t ZBitWidth>
+    requires (ZBitWidth <= sizeof(size_t)*8)
+    template<void VisitFunc(T, void*)>  
+    void grid<T, CellSize, ZBitWidth>::visit(const cell_bounds& bounds, void* user_data) {
+        assert(this->cell_nodes.size() > 0 && "Visit attempted on uninitialized grid");
 
-        for (int yy{scaled.y_start}; yy <= scaled.y_end; yy++) {
-            for (int xx{scaled.x_start}; xx <= scaled.x_end; xx++) {
+        for (int yy{bounds.y_start}; yy <= bounds.y_end; yy++) {
+            for (int xx{bounds.x_start}; xx <= bounds.x_end; xx++) {
                 this->cell_query(this->z_order(xx, yy));     
             }
         }
@@ -289,11 +332,16 @@ namespace lightgrid {
     requires (ZBitWidth <= sizeof(size_t)*8)
     void grid<T, CellSize, ZBitWidth>::visit(const bounds& bounds, void(*VisitFunc)(T, void*), void* user_data) {
         assert(this->cell_nodes.size() > 0 && "Visit attempted on uninitialized grid");
+        this->visit(this->get_cell_bounds(bounds), VisitFunc, user_data);
+    }
 
-        cell_bounds scaled{get_cell_bounds(bounds)};
+    template<class T, int CellSize, size_t ZBitWidth>
+    requires (ZBitWidth <= sizeof(size_t)*8)
+    void grid<T, CellSize, ZBitWidth>::visit(const cell_bounds& bounds, void(*VisitFunc)(T, void*), void* user_data) {
+        assert(this->cell_nodes.size() > 0 && "Visit attempted on uninitialized grid");
 
-        for (int yy{scaled.y_start}; yy <= scaled.y_end; yy++) {
-            for (int xx{scaled.x_start}; xx <= scaled.x_end; xx++) {
+        for (int yy{bounds.y_start}; yy <= bounds.y_end; yy++) {
+            for (int xx{bounds.x_start}; xx <= bounds.x_end; xx++) {
                 this->cell_query(this->z_order(xx, yy));     
             }
         }
